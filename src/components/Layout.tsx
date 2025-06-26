@@ -53,11 +53,12 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Sidebar */}
       <div className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out
+        fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out flex flex-col
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         lg:translate-x-0 lg:static lg:inset-0
       `}>
-        <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200">
+        {/* Header */}
+        <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center space-x-2">
             <Shield className="w-8 h-8 text-blue-600" />
             <span className="text-xl font-bold text-gray-900">CRM Seguros</span>
@@ -70,7 +71,8 @@ export default function Layout({ children }: LayoutProps) {
           </button>
         </div>
 
-        <nav className="mt-6 px-3">
+        {/* Navigation - Flexible area */}
+        <nav className="flex-1 px-3 py-6 overflow-y-auto">
           <div className="space-y-1">
             {navigation.map((item) => {
               const isActive = location.pathname === item.href
@@ -100,10 +102,10 @@ export default function Layout({ children }: LayoutProps) {
           </div>
         </nav>
 
-        {/* User info and sign out */}
-        <div className="absolute bottom-0 w-full p-4 border-t border-gray-200">
+        {/* User info and sign out - Fixed at bottom */}
+        <div className="flex-shrink-0 p-4 border-t border-gray-200">
           <div className="flex items-center justify-between">
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 pr-3">
               <p className="text-sm font-medium text-gray-900 truncate">
                 {user?.email}
               </p>
@@ -111,7 +113,7 @@ export default function Layout({ children }: LayoutProps) {
             </div>
             <button
               onClick={handleSignOut}
-              className="ml-2 p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors duration-200"
+              className="flex-shrink-0 p-2 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors duration-200"
               title="Cerrar Sesión"
             >
               <LogOut className="w-4 h-4" />
