@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
-import { Shield, Lock, Eye, EyeOff, CheckCircle } from 'lucide-react'
+import { Shield, Lock, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
 
 export default function ResetPasswordForm() {
   const [password, setPassword] = useState('')
@@ -11,19 +12,45 @@ export default function ResetPasswordForm() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const [validatingToken, setValidatingToken] = useState(true)
   
   const { updatePassword } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
 
   useEffect(() => {
-    // Check if we have the required tokens from the URL
-    const accessToken = searchParams.get('access_token')
-    const refreshToken = searchParams.get('refresh_token')
-    
-    if (!accessToken || !refreshToken) {
-      setError('Enlace de recuperación inválido o expirado')
+    const validateTokens = async () => {
+      try {
+        // Check if we have the required tokens from the URL
+        const accessToken = searchParams.get('access_token')
+        const refreshToken = searchParams.get('refresh_token')
+        const type = searchParams.get('type')
+        
+        if (!accessToken || !refreshToken || type !== 'recovery') {
+          setError('Enlace de recuperación inválido o expirado')
+          setValidatingToken(false)
+          return
+        }
+
+        // Set the session with the tokens from the URL
+        const { data, error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken
+        })
+
+        if (error) {
+          setError('Enlace de recuperación inválido o expirado')
+        } else if (!data.user) {
+          setError('No se pudo validar el usuario')
+        }
+      } catch (err) {
+        setError('Error al validar el enlace de recuperación')
+      } finally {
+        setValidatingToken(false)
+      }
     }
+
+    validateTokens()
   }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -56,6 +83,51 @@ export default function ResetPasswordForm() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleBackToLogin = () => {
+    navigate('/')
+  }
+
+  if (validatingToken) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full space-y-8">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Validando enlace de recuperación...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error && !password && !confirmPassword) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full space-y-8">
+          <div className="text-center">
+            <div className="flex justify-center">
+              <div className="p-3 bg-red-600 rounded-full">
+                <AlertCircle className="w-8 h-8 text-white" />
+              </div>
+            </div>
+            <h2 className="mt-6 text-3xl font-bold text-gray-900">
+              Enlace Inválido
+            </h2>
+            <p className="mt-2 text-sm text-gray-600">
+              {error}
+            </p>
+            <button
+              onClick={handleBackToLogin}
+              className="mt-6 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200"
+            >
+              Volver al Inicio de Sesión
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (success) {
@@ -187,6 +259,16 @@ export default function ResetPasswordForm() {
                 className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
               >
                 {loading ? 'Actualizando...' : 'Actualizar Contraseña'}
+              </button>
+            </div>
+
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={handleBackToLogin}
+                className="text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors duration-200"
+              >
+                Volver al inicio de sesión
               </button>
             </div>
           </form>
