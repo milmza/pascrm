@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Layout from './components/Layout'
 import AuthForm from './components/AuthForm'
+import ResetPasswordForm from './components/ResetPasswordForm'
 import Dashboard from './components/Dashboard'
 import PolicyholderList from './components/PolicyholderList'
 import PolicyList from './components/PolicyList'
@@ -22,21 +23,32 @@ function AppContent() {
     )
   }
 
-  if (!user) {
-    return <AuthForm />
-  }
-
   return (
     <Router>
-      <Layout>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/policyholders" element={<PolicyholderList />} />
-          <Route path="/policies" element={<PolicyList />} />
-          <Route path="/notifications" element={<NotificationList />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Layout>
+      <Routes>
+        {/* Reset password route - accessible without authentication */}
+        <Route path="/reset-password" element={<ResetPasswordForm />} />
+        
+        {/* Protected routes */}
+        {user ? (
+          <Route path="/*" element={
+            <Layout>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/policyholders" element={<PolicyholderList />} />
+                <Route path="/policies" element={<PolicyList />} />
+                <Route path="/notifications" element={<NotificationList />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </Layout>
+          } />
+        ) : (
+          <>
+            <Route path="/" element={<AuthForm />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </>
+        )}
+      </Routes>
     </Router>
   )
 }

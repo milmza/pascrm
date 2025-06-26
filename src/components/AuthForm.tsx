@@ -1,25 +1,33 @@
 import React, { useState } from 'react'
-import { Shield, Mail, Lock, Eye, EyeOff } from 'lucide-react'
+import { Shield, Mail, Lock, Eye, EyeOff, ArrowLeft } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function AuthForm() {
   const [isSignUp, setIsSignUp] = useState(false)
+  const [isResetPassword, setIsResetPassword] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
 
-  const { signIn, signUp } = useAuth()
+  const { signIn, signUp, resetPassword } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
+    setMessage('')
 
     try {
-      if (isSignUp) {
+      if (isResetPassword) {
+        await resetPassword(email)
+        setMessage('Se ha enviado un enlace de recuperación a tu correo electrónico')
+      } else if (isSignUp) {
         await signUp(email, password)
+        setMessage('Cuenta creada exitosamente. Puedes iniciar sesión ahora.')
+        setIsSignUp(false)
       } else {
         await signIn(email, password)
       }
@@ -28,6 +36,20 @@ export default function AuthForm() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const resetForm = () => {
+    setEmail('')
+    setPassword('')
+    setError('')
+    setMessage('')
+    setShowPassword(false)
+  }
+
+  const handleModeChange = (mode: 'signin' | 'signup' | 'reset') => {
+    resetForm()
+    setIsSignUp(mode === 'signup')
+    setIsResetPassword(mode === 'reset')
   }
 
   return (
@@ -43,7 +65,12 @@ export default function AuthForm() {
             CRM Seguros
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-            {isSignUp ? 'Crea tu cuenta de agente' : 'Inicia sesión en tu cuenta'}
+            {isResetPassword 
+              ? 'Recupera tu contraseña' 
+              : isSignUp 
+              ? 'Crea tu cuenta de agente' 
+              : 'Inicia sesión en tu cuenta'
+            }
           </p>
         </div>
 
@@ -52,6 +79,12 @@ export default function AuthForm() {
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
                 {error}
+              </div>
+            )}
+
+            {message && (
+              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
+                {message}
               </div>
             )}
 
@@ -77,38 +110,40 @@ export default function AuthForm() {
               </div>
             </div>
 
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                Contraseña
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
+            {!isResetPassword && (
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                  Contraseña
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Lock className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    id="password"
+                    name="password"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete={isSignUp ? 'new-password' : 'current-password'}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="block w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    placeholder="••••••••"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-5 w-5" />
+                    ) : (
+                      <Eye className="h-5 w-5" />
+                    )}
+                  </button>
                 </div>
-                <input
-                  id="password"
-                  name="password"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete={isSignUp ? 'new-password' : 'current-password'}
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                  placeholder="••••••••"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-5 w-5" />
-                  ) : (
-                    <Eye className="h-5 w-5" />
-                  )}
-                </button>
               </div>
-            </div>
+            )}
 
             <div>
               <button
@@ -116,21 +151,56 @@ export default function AuthForm() {
                 disabled={loading}
                 className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
               >
-                {loading ? 'Procesando...' : (isSignUp ? 'Registrarse' : 'Iniciar Sesión')}
+                {loading ? (
+                  'Procesando...'
+                ) : isResetPassword ? (
+                  'Enviar Enlace de Recuperación'
+                ) : isSignUp ? (
+                  'Registrarse'
+                ) : (
+                  'Iniciar Sesión'
+                )}
               </button>
             </div>
 
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={() => setIsSignUp(!isSignUp)}
-                className="text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors duration-200"
-              >
-                {isSignUp 
-                  ? '¿Ya tienes cuenta? Inicia sesión' 
-                  : '¿No tienes cuenta? Regístrate'
-                }
-              </button>
+            <div className="space-y-3">
+              {isResetPassword ? (
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={() => handleModeChange('signin')}
+                    className="inline-flex items-center text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors duration-200"
+                  >
+                    <ArrowLeft className="w-4 h-4 mr-1" />
+                    Volver al inicio de sesión
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="text-center">
+                    <button
+                      type="button"
+                      onClick={() => handleModeChange('reset')}
+                      className="text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors duration-200"
+                    >
+                      ¿Olvidaste tu contraseña?
+                    </button>
+                  </div>
+                  
+                  <div className="text-center">
+                    <button
+                      type="button"
+                      onClick={() => handleModeChange(isSignUp ? 'signin' : 'signup')}
+                      className="text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors duration-200"
+                    >
+                      {isSignUp 
+                        ? '¿Ya tienes cuenta? Inicia sesión' 
+                        : '¿No tienes cuenta? Regístrate'
+                      }
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </form>
         </div>
