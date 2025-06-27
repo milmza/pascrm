@@ -69,46 +69,84 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const requestPasswordReset = async (email: string) => {
     try {
+      if (!email || !email.includes('@')) {
+        throw new Error('Por favor ingresa un email válido')
+      }
+
+      // Verificar que el usuario existe en Supabase Auth
+      const { data: users } = await supabase.auth.admin.listUsers()
+      const userExists = users.users.some(u => u.email === email)
+      
+      if (!userExists) {
+        // Por seguridad, no revelamos si el email existe o no
+        console.log(`Email ${email} no encontrado en el sistema`)
+      }
+
       // Generar código de recuperación
       const code = await createPasswordResetCode(email)
       
       // Aquí normalmente enviarías el email con el código
       // Por ahora, mostraremos el código en la consola para testing
-      console.log(`Código de recuperación para ${email}: ${code}`)
+      console.log(`🔐 Código de recuperación para ${email}: ${code}`)
+      console.log(`⏰ El código expira en 15 minutos`)
       
       // En producción, aquí llamarías a tu servicio de email
       // await sendResetCodeEmail(email, code)
       
-    } catch (error) {
-      throw new Error('Error al generar código de recuperación')
+    } catch (error: any) {
+      console.error('Error in requestPasswordReset:', error)
+      throw new Error(error.message || 'Error al generar código de recuperación')
     }
   }
 
   const verifyPasswordResetCode = async (email: string, code: string): Promise<boolean> => {
     try {
+      if (!email || !code) {
+        return false
+      }
+      
       return await verifyResetCode(email, code)
-    } catch (error) {
-      throw new Error('Error al verificar código')
+    } catch (error: any) {
+      console.error('Error in verifyPasswordResetCode:', error)
+      return false
     }
   }
 
   const resetPasswordWithCode = async (email: string, code: string, newPassword: string) => {
     try {
+      if (!email || !code || !newPassword) {
+        throw new Error('Todos los campos son requeridos')
+      }
+
       // Verificar código primero
       const isValid = await verifyResetCode(email, code)
       if (!isValid) {
         throw new Error('Código inválido o expirado')
       }
 
-      // Actualizar contraseña usando el admin API
-      // Nota: En producción necesitarías un endpoint seguro para esto
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword
+      // Para cambiar la contraseña sin estar autenticado, necesitamos usar el admin API
+      // Esto requiere permisos especiales y normalmente se haría en el backend
+      
+      // Alternativa: Usar el flujo de reset password de Supabase
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`
       })
 
-      if (error) throw error
-    } catch (error) {
-      throw error
+      if (error) {
+        // Si falla el reset automático, intentamos actualizar directamente
+        // Nota: Esto solo funciona si el usuario está autenticado
+        const { error: updateError } = await supabase.auth.updateUser({
+          password: newPassword
+        })
+        
+        if (updateError) {
+          throw new Error('No se pudo actualizar la contraseña. Intenta iniciar sesión primero.')
+        }
+      }
+
+    } catch (error: any) {
+      console.error('Error in resetPasswordWithCode:', error)
+      throw new Error(error.message || 'Error al cambiar la contraseña')
     }
   }
 

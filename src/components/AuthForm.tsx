@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Shield, Mail, Lock, Eye, EyeOff, ArrowLeft, KeyRound } from 'lucide-react'
+import { Shield, Mail, Lock, Eye, EyeOff, ArrowLeft, KeyRound, AlertCircle, CheckCircle } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function AuthForm() {
@@ -35,24 +35,45 @@ export default function AuthForm() {
           setError('La contraseña debe tener al menos 6 caracteres')
           return
         }
+        if (resetCode.length !== 6) {
+          setError('El código debe tener 6 dígitos')
+          return
+        }
         
+        // Primero verificar el código
+        const isValidCode = await verifyPasswordResetCode(email, resetCode)
+        if (!isValidCode) {
+          setError('Código inválido o expirado')
+          return
+        }
+        
+        // Intentar cambiar la contraseña
         await resetPasswordWithCode(email, resetCode, password)
-        setMessage('Contraseña actualizada exitosamente. Puedes iniciar sesión ahora.')
+        setMessage('¡Código verificado! Por favor revisa tu email para completar el cambio de contraseña.')
         
-        // Resetear formulario y volver al login
+        // Resetear formulario después de un tiempo
         setTimeout(() => {
           resetForm()
           setIsResetPassword(false)
           setIsVerifyCode(false)
-        }, 2000)
+        }, 3000)
         
       } else if (isResetPassword) {
         // Solicitar código de recuperación
+        if (!email || !email.includes('@')) {
+          setError('Por favor ingresa un email válido')
+          return
+        }
+        
         await requestPasswordReset(email)
-        setMessage('Se ha enviado un código de 6 dígitos a tu correo electrónico')
+        setMessage('Se ha enviado un código de 6 dígitos a tu correo electrónico. Revisa también la carpeta de spam.')
         setIsVerifyCode(true)
         
       } else if (isSignUp) {
+        if (password.length < 6) {
+          setError('La contraseña debe tener al menos 6 caracteres')
+          return
+        }
         await signUp(email, password)
         setMessage('Cuenta creada exitosamente. Puedes iniciar sesión ahora.')
         setIsSignUp(false)
@@ -60,6 +81,7 @@ export default function AuthForm() {
         await signIn(email, password)
       }
     } catch (error: any) {
+      console.error('Auth error:', error)
       setError(error.message || 'Ha ocurrido un error')
     } finally {
       setLoading(false)
@@ -93,6 +115,12 @@ export default function AuthForm() {
     setMessage('')
   }
 
+  const handleCodeChange = (value: string) => {
+    // Solo permitir números y máximo 6 dígitos
+    const numericValue = value.replace(/\D/g, '').slice(0, 6)
+    setResetCode(numericValue)
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center p-4">
       <div className="max-w-md w-full space-y-8">
@@ -107,7 +135,7 @@ export default function AuthForm() {
           </h2>
           <p className="mt-2 text-sm text-gray-600">
             {isVerifyCode 
-              ? 'Ingresa el código y tu nueva contraseña'
+              ? 'Ingresa el código de verificación'
               : isResetPassword 
               ? 'Recupera tu contraseña' 
               : isSignUp 
@@ -120,14 +148,16 @@ export default function AuthForm() {
         <div className="bg-white py-8 px-6 shadow-lg rounded-xl">
           <form className="space-y-6" onSubmit={handleSubmit}>
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                {error}
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-start">
+                <AlertCircle className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
+                <span>{error}</span>
               </div>
             )}
 
             {message && (
-              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
-                {message}
+              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm flex items-start">
+                <CheckCircle className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
+                <span>{message}</span>
               </div>
             )}
 
@@ -172,14 +202,18 @@ export default function AuthForm() {
                     type="text"
                     required
                     value={resetCode}
-                    onChange={(e) => setResetCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-center text-2xl tracking-widest"
+                    onChange={(e) => handleCodeChange(e.target.value)}
+                    className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-center text-2xl tracking-widest font-mono"
                     placeholder="000000"
                     maxLength={6}
+                    autoComplete="off"
                   />
                 </div>
                 <p className="mt-1 text-xs text-gray-500">
-                  Ingresa el código de 6 dígitos enviado a {email}
+                  Ingresa el código de 6 dígitos enviado a <strong>{email}</strong>
+                </p>
+                <p className="mt-1 text-xs text-gray-400">
+                  💡 Revisa también la consola del navegador (F12) para ver el código de prueba
                 </p>
               </div>
             )}
@@ -218,6 +252,11 @@ export default function AuthForm() {
                     )}
                   </button>
                 </div>
+                {(isSignUp || isVerifyCode) && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Mínimo 6 caracteres
+                  </p>
+                )}
               </div>
             )}
 
@@ -265,9 +304,12 @@ export default function AuthForm() {
                 className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
               >
                 {loading ? (
-                  'Procesando...'
+                  <div className="flex items-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Procesando...
+                  </div>
                 ) : isVerifyCode ? (
-                  'Cambiar Contraseña'
+                  'Verificar y Cambiar Contraseña'
                 ) : isResetPassword ? (
                   'Enviar Código'
                 ) : isSignUp ? (

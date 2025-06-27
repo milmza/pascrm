@@ -11,22 +11,48 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // Password reset functions
 export const createPasswordResetCode = async (email: string): Promise<string> => {
-  const { data, error } = await supabase.rpc('create_password_reset_code', {
-    user_email: email
-  })
-  
-  if (error) throw error
-  return data
+  try {
+    const { data, error } = await supabase.rpc('create_password_reset_code', {
+      user_email: email
+    })
+    
+    if (error) {
+      console.error('Error creating reset code:', error)
+      throw new Error(`Error al generar código: ${error.message}`)
+    }
+    
+    if (!data) {
+      throw new Error('No se pudo generar el código de recuperación')
+    }
+    
+    return data
+  } catch (error: any) {
+    console.error('Error in createPasswordResetCode:', error)
+    throw new Error(error.message || 'Error al generar código de recuperación')
+  }
 }
 
 export const verifyResetCode = async (email: string, code: string): Promise<boolean> => {
-  const { data, error } = await supabase.rpc('verify_reset_code', {
-    user_email: email,
-    verification_code: code
-  })
-  
-  if (error) throw error
-  return data
+  try {
+    if (!email || !code) {
+      return false
+    }
+    
+    const { data, error } = await supabase.rpc('verify_reset_code', {
+      user_email: email,
+      verification_code: code
+    })
+    
+    if (error) {
+      console.error('Error verifying reset code:', error)
+      return false
+    }
+    
+    return data === true
+  } catch (error: any) {
+    console.error('Error in verifyResetCode:', error)
+    return false
+  }
 }
 
 // Types
