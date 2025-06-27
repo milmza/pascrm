@@ -9,6 +9,26 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
+// Password reset functions
+export const createPasswordResetCode = async (email: string): Promise<string> => {
+  const { data, error } = await supabase.rpc('create_password_reset_code', {
+    user_email: email
+  })
+  
+  if (error) throw error
+  return data
+}
+
+export const verifyResetCode = async (email: string, code: string): Promise<boolean> => {
+  const { data, error } = await supabase.rpc('verify_reset_code', {
+    user_email: email,
+    verification_code: code
+  })
+  
+  if (error) throw error
+  return data
+}
+
 // Types
 export interface Policyholder {
   id: string
@@ -54,4 +74,13 @@ export interface Notification {
   created_at: string
   agent_id: string
   policy?: Policy
+}
+
+export interface PasswordResetCode {
+  id: string
+  email: string
+  code: string
+  expires_at: string
+  used: boolean
+  created_at: string
 }

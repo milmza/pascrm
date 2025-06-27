@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { User } from '@supabase/supabase-js'
-import { supabase } from '../lib/supabase'
+import { supabase, createPasswordResetCode, verifyResetCode } from '../lib/supabase'
 
 interface AuthContextType {
   user: User | null
@@ -8,7 +8,9 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>
   signUp: (email: string, password: string) => Promise<void>
   signOut: () => Promise<void>
-  resetPassword: (email: string) => Promise<void>
+  requestPasswordReset: (email: string) => Promise<void>
+  verifyPasswordResetCode: (email: string, code: string) => Promise<boolean>
+  resetPasswordWithCode: (email: string, code: string, newPassword: string) => Promise<void>
   updatePassword: (password: string) => Promise<void>
 }
 
@@ -65,14 +67,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error
   }
 
-  const resetPassword = async (email: string) => {
-    // Get the current origin (protocol + hostname + port)
-    const currentOrigin = window.location.origin
-    
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${currentOrigin}/reset-password`,
-    })
-    if (error) throw error
+  const requestPasswordReset = async (email: string) => {
+    try {
+      // Generar código de recuperación
+      const code = await createPasswordResetCode(email)
+      
+      // Aquí normalmente enviarías el email con el código
+      // Por ahora, mostraremos el código en la consola para testing
+      console.log(`Código de recuperación para ${email}: ${code}`)
+      
+      // En producción, aquí llamarías a tu servicio de email
+      // await sendResetCodeEmail(email, code)
+      
+    } catch (error) {
+      throw new Error('Error al generar código de recuperación')
+    }
+  }
+
+  const verifyPasswordResetCode = async (email: string, code: string): Promise<boolean> => {
+    try {
+      return await verifyResetCode(email, code)
+    } catch (error) {
+      throw new Error('Error al verificar código')
+    }
+  }
+
+  const resetPasswordWithCode = async (email: string, code: string, newPassword: string) => {
+    try {
+      // Verificar código primero
+      const isValid = await verifyResetCode(email, code)
+      if (!isValid) {
+        throw new Error('Código inválido o expirado')
+      }
+
+      // Actualizar contraseña usando el admin API
+      // Nota: En producción necesitarías un endpoint seguro para esto
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      })
+
+      if (error) throw error
+    } catch (error) {
+      throw error
+    }
   }
 
   const updatePassword = async (password: string) => {
@@ -88,7 +125,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signIn,
     signUp,
     signOut,
-    resetPassword,
+    requestPasswordReset,
+    verifyPasswordResetCode,
+    resetPasswordWithCode,
     updatePassword,
   }
 
