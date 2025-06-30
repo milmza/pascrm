@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Plus, Search, Edit2, Trash2, FileText, Calendar, DollarSign } from 'lucide-react'
-import { supabase, Policy, Policyholder } from '../lib/supabase'
+import { supabase, Policy, Policyholder, InsuranceCompany, CoverageType } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function PolicyList() {
@@ -8,6 +8,8 @@ export default function PolicyList() {
   const [policies, setPolicies] = useState<Policy[]>([])
   const [filteredPolicies, setFilteredPolicies] = useState<Policy[]>([])
   const [policyholders, setPolicyholders] = useState<Policyholder[]>([])
+  const [companies, setCompanies] = useState<InsuranceCompany[]>([])
+  const [coverageTypes, setCoverageTypes] = useState<CoverageType[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterType, setFilterType] = useState('all')
@@ -52,12 +54,14 @@ export default function PolicyList() {
     try {
       setLoading(true)
       
-      // Load policies with policyholder data
+      // Load policies with related data
       const { data: policiesData, error: policiesError } = await supabase
         .from('policies')
         .select(`
           *,
-          policyholder:policyholders(*)
+          policyholder:policyholders(*),
+          company:insurance_companies(*),
+          coverage_type:coverage_types(*)
         `)
         .eq('agent_id', user!.id)
         .order('created_at', { ascending: false })
@@ -73,8 +77,33 @@ export default function PolicyList() {
 
       if (policyholdersError) throw policyholdersError
 
+      // Load companies for the form
+      const { data: companiesData, error: companiesError } = await supabase
+        .from('insurance_companies')
+        .select('*')
+        .eq('agent_id', user!.id)
+        .eq('is_active', true)
+        .order('name', { ascending: true })
+
+      if (companiesError) throw companiesError
+
+      // Load coverage types for the form
+      const { data: coverageData, error: coverageError } = await supabase
+        .from('coverage_types')
+        .select(`
+          *,
+          company:insurance_companies(*)
+        `)
+        .eq('agent_id', user!.id)
+        .eq('is_active', true)
+        .order('name', { ascending: true })
+
+      if (coverageError) throw coverageError
+
       setPolicies(policiesData || [])
       setPolicyholders(policyholdersData || [])
+      setCompanies(companiesData || [])
+      setCoverageTypes(coverageData || [])
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
@@ -265,8 +294,13 @@ export default function PolicyList() {
                       {policy.policyholder?.first_name} {policy.policyholder?.last_name}
                     </p>
                     <p className="text-sm text-gray-600">
-                      {policy.insurance_company}
+                      {policy.company?.name || policy.insurance_company}
                     </p>
+                    {policy.coverage_type && (
+                      <p className="text-xs text-gray-500">
+                        {policy.coverage_type.name}
+                      </p>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-between">
@@ -311,6 +345,8 @@ export default function PolicyList() {
         <PolicyModal
           policy={editingPolicy}
           policyholders={policyholders}
+          companies={companies}
+          coverageTypes={coverageTypes}
           onClose={() => setShowModal(false)}
           onSave={() => {
             loadData()
@@ -326,11 +362,15 @@ export default function PolicyList() {
 function PolicyModal({ 
   policy, 
   policyholders,
+  companies,
+  coverageTypes,
   onClose, 
   onSave 
 }: { 
   policy: Policy | null
   policyholders: Policyholder[]
+  companies: InsuranceCompany[]
+  coverageTypes: CoverageType[]
   onClose: () => void
   onSave: () => void
 }) {
@@ -340,6 +380,8 @@ function PolicyModal({
     policy_number: policy?.policy_number || '',
     policyholder_id: policy?.policyholder_id || '',
     policy_type: policy?.policy_type || 'vida',
+    company_id: policy?.company_id || '',
+    coverage_type_id: policy?.coverage_type_id || '',
     insurance_company: policy?.insurance_company || '',
     start_date: policy?.start_date || '',
     end_date: policy?.end_date || '',
@@ -348,6 +390,31 @@ function PolicyModal({
     coverage_details: policy?.coverage_details || {},
     status: policy?.status || 'activa',
   })
+
+  // Filter coverage types based on selected company and policy type
+  const availableCoverageTypes = coverageTypes.filter(ct => 
+    (!formData.company_id || ct.company_id === formData.company_id) &&
+    ct.policy_type === formData.policy_type
+  )
+
+  const handleCompanyChange = (companyId: string) => {
+    const selectedCompany = companies.find(c => c.id === companyId)
+    setFormData({
+      ...formData,
+      company_id: companyId,
+      insurance_company: selectedCompany?.name || '',
+      coverage_type_id: '', // Reset coverage type when company changes
+    })
+  }
+
+  const handleCoverageTypeChange = (coverageTypeId: string) => {
+    const selectedCoverage = coverageTypes.find(ct => ct.id === coverageTypeId)
+    setFormData({
+      ...formData,
+      coverage_type_id: coverageTypeId,
+      premium_amount: selectedCoverage?.base_premium || formData.premium_amount,
+    })
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -387,7 +454,7 @@ function PolicyModal({
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-20 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-lg bg-white">
+      <div className="relative top-20 mx-auto p-5 border w-full max-w-3xl shadow-lg rounded-lg bg-white">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-medium text-gray-900">
             {policy ? 'Editar Póliza' : 'Nueva Póliza'}
@@ -441,7 +508,11 @@ function PolicyModal({
               <select
                 required
                 value={formData.policy_type}
-                onChange={(e) => setFormData({ ...formData, policy_type: e.target.value as any })}
+                onChange={(e) => setFormData({ 
+                  ...formData, 
+                  policy_type: e.target.value as any,
+                  coverage_type_id: '' // Reset coverage type when policy type changes
+                })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="vida">Vida</option>
@@ -455,16 +526,56 @@ function PolicyModal({
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Compañía Aseguradora *
+                Compañía Aseguradora
               </label>
-              <input
-                type="text"
-                required
-                value={formData.insurance_company}
-                onChange={(e) => setFormData({ ...formData, insurance_company: e.target.value })}
+              <select
+                value={formData.company_id}
+                onChange={(e) => handleCompanyChange(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              >
+                <option value="">Seleccionar compañía</option>
+                {companies.map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.name}
+                  </option>
+                ))}
+              </select>
             </div>
+
+            {!formData.company_id && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nombre de Compañía (Manual)
+                </label>
+                <input
+                  type="text"
+                  value={formData.insurance_company}
+                  onChange={(e) => setFormData({ ...formData, insurance_company: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Nombre de la compañía"
+                />
+              </div>
+            )}
+
+            {availableCoverageTypes.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tipo de Cobertura
+                </label>
+                <select
+                  value={formData.coverage_type_id}
+                  onChange={(e) => handleCoverageTypeChange(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Seleccionar cobertura</option>
+                  {availableCoverageTypes.map((coverage) => (
+                    <option key={coverage.id} value={coverage.id}>
+                      {coverage.name} - {coverage.base_premium > 0 && `€${coverage.base_premium}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">

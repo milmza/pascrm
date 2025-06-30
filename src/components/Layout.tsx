@@ -8,7 +8,8 @@ import {
   LogOut, 
   Shield,
   Menu,
-  X
+  X,
+  Building2
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useState } from 'react'
@@ -26,6 +27,7 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Dashboard', href: '/', icon: Home },
     { name: 'Asegurados', href: '/policyholders', icon: Users },
     { name: 'Pólizas', href: '/policies', icon: FileText },
+    { name: 'Compañías', href: '/companies', icon: Building2 },
     { name: 'Notificaciones', href: '/notifications', icon: Bell },
   ]
 

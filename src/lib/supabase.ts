@@ -72,12 +72,41 @@ export interface Policyholder {
   agent_id: string
 }
 
+export interface InsuranceCompany {
+  id: string
+  name: string
+  description?: string
+  contact_email?: string
+  contact_phone?: string
+  website?: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
+  agent_id: string
+}
+
+export interface CoverageType {
+  id: string
+  company_id: string
+  name: string
+  description?: string
+  policy_type: 'vida' | 'auto' | 'moto' | 'bicicleta' | 'hogar' | 'otro'
+  base_premium: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+  agent_id: string
+  company?: InsuranceCompany
+}
+
 export interface Policy {
   id: string
   policy_number: string
   policyholder_id: string
   policy_type: 'vida' | 'auto' | 'moto' | 'bicicleta' | 'hogar' | 'otro'
   insurance_company: string
+  company_id?: string
+  coverage_type_id?: string
   start_date: string
   end_date: string
   premium_amount: number
@@ -88,6 +117,8 @@ export interface Policy {
   updated_at: string
   agent_id: string
   policyholder?: Policyholder
+  company?: InsuranceCompany
+  coverage_type?: CoverageType
 }
 
 export interface Notification {

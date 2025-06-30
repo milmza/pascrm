@@ -7,6 +7,7 @@ import ResetPasswordForm from './components/ResetPasswordForm'
 import Dashboard from './components/Dashboard'
 import PolicyholderList from './components/PolicyholderList'
 import PolicyList from './components/PolicyList'
+import InsuranceCompanyList from './components/InsuranceCompanyList'
 import NotificationList from './components/NotificationList'
 
 function AppContent() {
@@ -37,6 +38,7 @@ function AppContent() {
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/policyholders" element={<PolicyholderList />} />
                 <Route path="/policies" element={<PolicyList />} />
+                <Route path="/companies" element={<InsuranceCompanyList />} />
                 <Route path="/notifications" element={<NotificationList />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
