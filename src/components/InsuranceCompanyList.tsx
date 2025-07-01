@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Plus, Search, Edit2, Trash2, Building2, Phone, Mail, Globe, Eye, EyeOff } from 'lucide-react'
-import { supabase, InsuranceCompany, CoverageType } from '../lib/supabase'
+import { supabase, InsuranceCompany, CoverageType, Currency } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function InsuranceCompanyList() {
@@ -8,6 +8,7 @@ export default function InsuranceCompanyList() {
   const [companies, setCompanies] = useState<InsuranceCompany[]>([])
   const [filteredCompanies, setFilteredCompanies] = useState<InsuranceCompany[]>([])
   const [coverageTypes, setCoverageTypes] = useState<CoverageType[]>([])
+  const [currencies, setCurrencies] = useState<Currency[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [showModal, setShowModal] = useState(false)
@@ -55,8 +56,19 @@ export default function InsuranceCompanyList() {
 
       if (coverageError) throw coverageError
 
+      // Load currencies
+      const { data: currenciesData, error: currenciesError } = await supabase
+        .from('currencies')
+        .select('*')
+        .eq('agent_id', user!.id)
+        .eq('is_active', true)
+        .order('code', { ascending: true })
+
+      if (currenciesError) throw currenciesError
+
       setCompanies(companiesData || [])
       setCoverageTypes(coverageData || [])
+      setCurrencies(currenciesData || [])
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
@@ -130,6 +142,11 @@ export default function InsuranceCompanyList() {
 
   const getCompanyCoverageCount = (companyId: string) => {
     return coverageTypes.filter(ct => ct.company_id === companyId).length
+  }
+
+  const formatCurrency = (amount: number, currencyCode: string) => {
+    const currency = currencies.find(c => c.code === currencyCode)
+    return `${amount} ${currency?.symbol || currencyCode}`
   }
 
   if (loading) {
@@ -277,7 +294,12 @@ export default function InsuranceCompanyList() {
                         <div key={coverage.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
                           <div>
                             <p className="text-sm font-medium text-gray-900">{coverage.name}</p>
-                            <p className="text-xs text-gray-600 capitalize">{coverage.policy_type}</p>
+                            <div className="flex items-center space-x-2 text-xs text-gray-600">
+                              <span className="capitalize">{coverage.policy_type}</span>
+                              {coverage.base_premium > 0 && (
+                                <span>• {formatCurrency(coverage.base_premium, coverage.currency_code)}</span>
+                              )}
+                            </div>
                           </div>
                           <div className="flex space-x-1">
                             <button
@@ -333,6 +355,7 @@ export default function InsuranceCompanyList() {
         <CoverageModal
           coverage={editingCoverage}
           companies={companies.filter(c => c.is_active)}
+          currencies={currencies}
           selectedCompanyId={selectedCompanyId}
           onClose={() => setShowCoverageModal(false)}
           onSave={() => {
@@ -521,12 +544,14 @@ function CompanyModal({
 function CoverageModal({ 
   coverage, 
   companies,
+  currencies,
   selectedCompanyId,
   onClose, 
   onSave 
 }: { 
   coverage: CoverageType | null
   companies: InsuranceCompany[]
+  currencies: Currency[]
   selectedCompanyId: string
   onClose: () => void
   onSave: () => void
@@ -537,8 +562,9 @@ function CoverageModal({
     company_id: coverage?.company_id || selectedCompanyId || '',
     name: coverage?.name || '',
     description: coverage?.description || '',
-    policy_type: coverage?.policy_type || 'vida' as const,
+    policy_type: coverage?.policy_type || 'vida',
     base_premium: coverage?.base_premium || 0,
+    currency_code: coverage?.currency_code || 'EUR',
     is_active: coverage?.is_active ?? true,
   })
 
@@ -634,7 +660,7 @@ function CoverageModal({
               <select
                 required
                 value={formData.policy_type}
-                onChange={(e) => setFormData({ ...formData, policy_type: e.target.value as any })}
+                onChange={(e) => setFormData({ ...formData, policy_type: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="vida">Vida</option>
@@ -642,6 +668,10 @@ function CoverageModal({
                 <option value="moto">Moto</option>
                 <option value="bicicleta">Bicicleta</option>
                 <option value="hogar">Hogar</option>
+                <option value="salud">Salud</option>
+                <option value="viaje">Viaje</option>
+                <option value="mascotas">Mascotas</option>
+                <option value="responsabilidad civil">Responsabilidad Civil</option>
                 <option value="otro">Otro</option>
               </select>
             </div>
@@ -661,7 +691,7 @@ function CoverageModal({
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Prima Base (€)
+                Prima Base
               </label>
               <input
                 type="number"
@@ -674,7 +704,24 @@ function CoverageModal({
             </div>
 
             <div>
-              <label className="flex items-center mt-6">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Moneda
+              </label>
+              <select
+                value={formData.currency_code}
+                onChange={(e) => setFormData({ ...formData, currency_code: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {currencies.map((currency) => (
+                  <option key={currency.id} value={currency.code}>
+                    {currency.code} - {currency.name} ({currency.symbol})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="flex items-center">
                 <input
                   type="checkbox"
                   checked={formData.is_active}

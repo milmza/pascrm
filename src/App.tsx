@@ -9,6 +9,8 @@ import PolicyholderList from './components/PolicyholderList'
 import PolicyList from './components/PolicyList'
 import InsuranceCompanyList from './components/InsuranceCompanyList'
 import NotificationList from './components/NotificationList'
+import PolicyTypesList from './components/PolicyTypesList'
+import CurrencyList from './components/CurrencyList'
 
 function AppContent() {
   const { user, loading } = useAuth()
@@ -40,6 +42,8 @@ function AppContent() {
                 <Route path="/policies" element={<PolicyList />} />
                 <Route path="/companies" element={<InsuranceCompanyList />} />
                 <Route path="/notifications" element={<NotificationList />} />
+                <Route path="/settings/policy-types" element={<PolicyTypesList />} />
+                <Route path="/settings/currencies" element={<CurrencyList />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Layout>

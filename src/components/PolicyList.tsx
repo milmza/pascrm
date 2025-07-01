@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Plus, Search, Edit2, Trash2, FileText, Calendar, DollarSign } from 'lucide-react'
-import { supabase, Policy, Policyholder, InsuranceCompany, CoverageType } from '../lib/supabase'
+import { supabase, Policy, Policyholder, InsuranceCompany, CoverageType, PolicyType, Currency } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function PolicyList() {
@@ -10,6 +10,8 @@ export default function PolicyList() {
   const [policyholders, setPolicyholders] = useState<Policyholder[]>([])
   const [companies, setCompanies] = useState<InsuranceCompany[]>([])
   const [coverageTypes, setCoverageTypes] = useState<CoverageType[]>([])
+  const [policyTypes, setPolicyTypes] = useState<PolicyType[]>([])
+  const [currencies, setCurrencies] = useState<Currency[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterType, setFilterType] = useState('all')
@@ -39,7 +41,9 @@ export default function PolicyList() {
 
     // Filter by type
     if (filterType !== 'all') {
-      filtered = filtered.filter(policy => policy.policy_type === filterType)
+      filtered = filtered.filter(policy => 
+        policy.policy_type === filterType || policy.policy_type_id === filterType
+      )
     }
 
     // Filter by status
@@ -61,7 +65,8 @@ export default function PolicyList() {
           *,
           policyholder:policyholders(*),
           company:insurance_companies(*),
-          coverage_type:coverage_types(*)
+          coverage_type:coverage_types(*),
+          policy_type_obj:policy_types(*)
         `)
         .eq('agent_id', user!.id)
         .order('created_at', { ascending: false })
@@ -100,10 +105,32 @@ export default function PolicyList() {
 
       if (coverageError) throw coverageError
 
+      // Load policy types
+      const { data: policyTypesData, error: policyTypesError } = await supabase
+        .from('policy_types')
+        .select('*')
+        .eq('agent_id', user!.id)
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true })
+
+      if (policyTypesError) throw policyTypesError
+
+      // Load currencies
+      const { data: currenciesData, error: currenciesError } = await supabase
+        .from('currencies')
+        .select('*')
+        .eq('agent_id', user!.id)
+        .eq('is_active', true)
+        .order('code', { ascending: true })
+
+      if (currenciesError) throw currenciesError
+
       setPolicies(policiesData || [])
       setPolicyholders(policyholdersData || [])
       setCompanies(companiesData || [])
       setCoverageTypes(coverageData || [])
+      setPolicyTypes(policyTypesData || [])
+      setCurrencies(currenciesData || [])
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
@@ -135,11 +162,15 @@ export default function PolicyList() {
     }
   }
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number, currencyCode: string = 'EUR') => {
+    const currency = currencies.find(c => c.code === currencyCode)
+    const symbol = currency?.symbol || currencyCode
+    
     return new Intl.NumberFormat('es-ES', {
-      style: 'currency',
-      currency: 'EUR'
-    }).format(amount)
+      style: 'decimal',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount) + ' ' + symbol
   }
 
   const formatDate = (dateString: string) => {
@@ -161,20 +192,27 @@ export default function PolicyList() {
     }
   }
 
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'vida':
-        return '❤️'
-      case 'auto':
-        return '🚗'
-      case 'moto':
-        return '🏍️'
-      case 'bicicleta':
-        return '🚲'
-      case 'hogar':
-        return '🏠'
-      default:
-        return '📋'
+  const getTypeDisplay = (policy: Policy) => {
+    if (policy.policy_type_obj) {
+      return {
+        icon: policy.policy_type_obj.icon,
+        name: policy.policy_type_obj.name
+      }
+    }
+    
+    // Fallback to legacy policy_type
+    const typeIcons: Record<string, string> = {
+      vida: '❤️',
+      auto: '🚗',
+      moto: '🏍️',
+      bicicleta: '🚲',
+      hogar: '🏠',
+      otro: '📋'
+    }
+    
+    return {
+      icon: typeIcons[policy.policy_type] || '📋',
+      name: policy.policy_type.charAt(0).toUpperCase() + policy.policy_type.slice(1)
     }
   }
 
@@ -231,12 +269,11 @@ export default function PolicyList() {
           className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="all">Todos los tipos</option>
-          <option value="vida">Vida</option>
-          <option value="auto">Auto</option>
-          <option value="moto">Moto</option>
-          <option value="bicicleta">Bicicleta</option>
-          <option value="hogar">Hogar</option>
-          <option value="otro">Otro</option>
+          {policyTypes.map((type) => (
+            <option key={type.id} value={type.id}>
+              {type.icon} {type.name}
+            </option>
+          ))}
         </select>
 
         <select
@@ -255,77 +292,80 @@ export default function PolicyList() {
       {/* Policies Grid */}
       {filteredPolicies.length > 0 ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredPolicies.map((policy) => (
-            <div key={policy.id} className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200">
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center">
-                    <div className="text-2xl mr-3">
-                      {getTypeIcon(policy.policy_type)}
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-medium text-gray-900">
-                        {policy.policy_number}
-                      </h3>
-                      <p className="text-sm text-gray-600 capitalize">
-                        {policy.policy_type}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => handleEdit(policy)}
-                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(policy.id)}
-                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">
-                      {policy.policyholder?.first_name} {policy.policyholder?.last_name}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      {policy.company?.name || policy.insurance_company}
-                    </p>
-                    {policy.coverage_type && (
-                      <p className="text-xs text-gray-500">
-                        {policy.coverage_type.name}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(policy.status)}`}>
-                      {policy.status.charAt(0).toUpperCase() + policy.status.slice(1)}
-                    </span>
-                    <div className="flex items-center text-sm text-gray-600">
-                      <DollarSign className="w-4 h-4 mr-1" />
-                      {formatCurrency(policy.premium_amount)}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between text-sm text-gray-600">
+          {filteredPolicies.map((policy) => {
+            const typeDisplay = getTypeDisplay(policy)
+            return (
+              <div key={policy.id} className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200">
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center">
-                      <Calendar className="w-4 h-4 mr-1" />
-                      Vence: {formatDate(policy.end_date)}
+                      <div className="text-2xl mr-3">
+                        {typeDisplay.icon}
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-medium text-gray-900">
+                          {policy.policy_number}
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          {typeDisplay.name}
+                        </p>
+                      </div>
                     </div>
-                    <span className="text-xs bg-gray-100 px-2 py-1 rounded">
-                      {policy.payment_frequency}
-                    </span>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleEdit(policy)}
+                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(policy.id)}
+                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        {policy.policyholder?.first_name} {policy.policyholder?.last_name}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {policy.company?.name || policy.insurance_company}
+                      </p>
+                      {policy.coverage_type && (
+                        <p className="text-xs text-gray-500">
+                          {policy.coverage_type.name}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(policy.status)}`}>
+                        {policy.status.charAt(0).toUpperCase() + policy.status.slice(1)}
+                      </span>
+                      <div className="flex items-center text-sm text-gray-600">
+                        <DollarSign className="w-4 h-4 mr-1" />
+                        {formatCurrency(policy.premium_amount, policy.currency_code)}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-sm text-gray-600">
+                      <div className="flex items-center">
+                        <Calendar className="w-4 h-4 mr-1" />
+                        Vence: {formatDate(policy.end_date)}
+                      </div>
+                      <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                        {policy.payment_frequency}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       ) : (
         <div className="text-center py-12">
@@ -347,6 +387,8 @@ export default function PolicyList() {
           policyholders={policyholders}
           companies={companies}
           coverageTypes={coverageTypes}
+          policyTypes={policyTypes}
+          currencies={currencies}
           onClose={() => setShowModal(false)}
           onSave={() => {
             loadData()
@@ -364,6 +406,8 @@ function PolicyModal({
   policyholders,
   companies,
   coverageTypes,
+  policyTypes,
+  currencies,
   onClose, 
   onSave 
 }: { 
@@ -371,6 +415,8 @@ function PolicyModal({
   policyholders: Policyholder[]
   companies: InsuranceCompany[]
   coverageTypes: CoverageType[]
+  policyTypes: PolicyType[]
+  currencies: Currency[]
   onClose: () => void
   onSave: () => void
 }) {
@@ -379,23 +425,27 @@ function PolicyModal({
   const [formData, setFormData] = useState({
     policy_number: policy?.policy_number || '',
     policyholder_id: policy?.policyholder_id || '',
-    policy_type: policy?.policy_type || 'vida',
+    policy_type: policy?.policy_type || '',
+    policy_type_id: policy?.policy_type_id || '',
     company_id: policy?.company_id || '',
     coverage_type_id: policy?.coverage_type_id || '',
     insurance_company: policy?.insurance_company || '',
     start_date: policy?.start_date || '',
     end_date: policy?.end_date || '',
     premium_amount: policy?.premium_amount || 0,
+    currency_code: policy?.currency_code || 'EUR',
     payment_frequency: policy?.payment_frequency || 'mensual',
     coverage_details: policy?.coverage_details || {},
     status: policy?.status || 'activa',
   })
 
   // Filter coverage types based on selected company and policy type
-  const availableCoverageTypes = coverageTypes.filter(ct => 
-    (!formData.company_id || ct.company_id === formData.company_id) &&
-    ct.policy_type === formData.policy_type
-  )
+  const availableCoverageTypes = coverageTypes.filter(ct => {
+    const matchesCompany = !formData.company_id || ct.company_id === formData.company_id
+    const selectedPolicyType = policyTypes.find(pt => pt.id === formData.policy_type_id)
+    const matchesType = !selectedPolicyType || ct.policy_type === selectedPolicyType.name.toLowerCase()
+    return matchesCompany && matchesType
+  })
 
   const handleCompanyChange = (companyId: string) => {
     const selectedCompany = companies.find(c => c.id === companyId)
@@ -407,12 +457,23 @@ function PolicyModal({
     })
   }
 
+  const handlePolicyTypeChange = (policyTypeId: string) => {
+    const selectedType = policyTypes.find(pt => pt.id === policyTypeId)
+    setFormData({
+      ...formData,
+      policy_type_id: policyTypeId,
+      policy_type: selectedType?.name.toLowerCase() || '',
+      coverage_type_id: '', // Reset coverage type when policy type changes
+    })
+  }
+
   const handleCoverageTypeChange = (coverageTypeId: string) => {
     const selectedCoverage = coverageTypes.find(ct => ct.id === coverageTypeId)
     setFormData({
       ...formData,
       coverage_type_id: coverageTypeId,
       premium_amount: selectedCoverage?.base_premium || formData.premium_amount,
+      currency_code: selectedCoverage?.currency_code || formData.currency_code,
     })
   }
 
@@ -454,7 +515,7 @@ function PolicyModal({
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-20 mx-auto p-5 border w-full max-w-3xl shadow-lg rounded-lg bg-white">
+      <div className="relative top-20 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-lg bg-white">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-medium text-gray-900">
             {policy ? 'Editar Póliza' : 'Nueva Póliza'}
@@ -468,7 +529,7 @@ function PolicyModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Número de Póliza *
@@ -507,20 +568,16 @@ function PolicyModal({
               </label>
               <select
                 required
-                value={formData.policy_type}
-                onChange={(e) => setFormData({ 
-                  ...formData, 
-                  policy_type: e.target.value as any,
-                  coverage_type_id: '' // Reset coverage type when policy type changes
-                })}
+                value={formData.policy_type_id}
+                onChange={(e) => handlePolicyTypeChange(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="vida">Vida</option>
-                <option value="auto">Auto</option>
-                <option value="moto">Moto</option>
-                <option value="bicicleta">Bicicleta</option>
-                <option value="hogar">Hogar</option>
-                <option value="otro">Otro</option>
+                <option value="">Seleccionar tipo</option>
+                {policyTypes.map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.icon} {type.name}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -570,7 +627,7 @@ function PolicyModal({
                   <option value="">Seleccionar cobertura</option>
                   {availableCoverageTypes.map((coverage) => (
                     <option key={coverage.id} value={coverage.id}>
-                      {coverage.name} - {coverage.base_premium > 0 && `€${coverage.base_premium}`}
+                      {coverage.name} {coverage.base_premium > 0 && `- ${coverage.base_premium} ${coverage.currency_code}`}
                     </option>
                   ))}
                 </select>
@@ -615,6 +672,24 @@ function PolicyModal({
                 onChange={(e) => setFormData({ ...formData, premium_amount: parseFloat(e.target.value) || 0 })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Moneda *
+              </label>
+              <select
+                required
+                value={formData.currency_code}
+                onChange={(e) => setFormData({ ...formData, currency_code: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {currencies.map((currency) => (
+                  <option key={currency.id} value={currency.code}>
+                    {currency.code} - {currency.name} ({currency.symbol})
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>

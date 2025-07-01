@@ -85,13 +85,36 @@ export interface InsuranceCompany {
   agent_id: string
 }
 
+export interface PolicyType {
+  id: string
+  name: string
+  description?: string
+  icon: string
+  is_active: boolean
+  sort_order: number
+  created_at: string
+  updated_at: string
+  agent_id: string
+}
+
+export interface Currency {
+  id: string
+  code: string
+  name: string
+  symbol: string
+  is_active: boolean
+  created_at: string
+  agent_id: string
+}
+
 export interface CoverageType {
   id: string
   company_id: string
   name: string
   description?: string
-  policy_type: 'vida' | 'auto' | 'moto' | 'bicicleta' | 'hogar' | 'otro'
+  policy_type: string
   base_premium: number
+  currency_code: string
   is_active: boolean
   created_at: string
   updated_at: string
@@ -103,13 +126,15 @@ export interface Policy {
   id: string
   policy_number: string
   policyholder_id: string
-  policy_type: 'vida' | 'auto' | 'moto' | 'bicicleta' | 'hogar' | 'otro'
+  policy_type: string
+  policy_type_id?: string
   insurance_company: string
   company_id?: string
   coverage_type_id?: string
   start_date: string
   end_date: string
   premium_amount: number
+  currency_code: string
   payment_frequency: 'mensual' | 'trimestral' | 'semestral' | 'anual'
   coverage_details: Record<string, any>
   status: 'activa' | 'vencida' | 'cancelada' | 'pendiente'
@@ -119,6 +144,7 @@ export interface Policy {
   policyholder?: Policyholder
   company?: InsuranceCompany
   coverage_type?: CoverageType
+  policy_type_obj?: PolicyType
 }
 
 export interface Notification {
