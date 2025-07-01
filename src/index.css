@@ -89,19 +89,62 @@ button:focus {
   @apply bg-gray-100 text-gray-800;
 }
 
-/* Ensure proper layout on mobile */
-@media (max-width: 1023px) {
-  .lg\:ml-64 {
-    margin-left: 0 !important;
-  }
-}
-
 /* Prevent horizontal scroll */
 body {
   overflow-x: hidden;
 }
 
-/* Ensure sidebar doesn't interfere with content */
+/* Layout fixes */
+.main-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 16rem; /* 64 * 0.25rem = 16rem */
+  z-index: 30;
+  transform: translateX(-100%);
+  transition: transform 0.3s ease-in-out;
+}
+
+.sidebar-container.open {
+  transform: translateX(0);
+}
+
+.main-content {
+  flex: 1;
+  min-height: 100vh;
+  margin-left: 0;
+  transition: margin-left 0.3s ease-in-out;
+}
+
+/* Desktop layout */
+@media (min-width: 1024px) {
+  .sidebar-container {
+    position: static;
+    transform: translateX(0);
+    z-index: auto;
+  }
+  
+  .main-content {
+    margin-left: 0;
+  }
+}
+
+/* Mobile header */
+.mobile-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+/* Sidebar overlay for mobile */
 .sidebar-overlay {
   position: fixed;
   top: 0;
@@ -109,13 +152,51 @@ body {
   right: 0;
   bottom: 0;
   background-color: rgba(0, 0, 0, 0.5);
-  z-index: 40;
+  z-index: 25;
 }
 
-/* Mobile-first responsive design */
+/* Modal z-index fixes */
+.modal-backdrop {
+  z-index: 50;
+}
+
+.modal-content {
+  z-index: 51;
+}
+
+/* Select dropdown z-index */
+select {
+  position: relative;
+  z-index: 10;
+}
+
+/* Ensure proper stacking context */
+.dropdown-menu {
+  z-index: 1000;
+}
+
+/* Button and interactive element fixes */
+button {
+  position: relative;
+  z-index: 1;
+}
+
+/* Form element positioning */
+.form-element {
+  position: relative;
+  z-index: 1;
+}
+
+/* Ensure content doesn't go behind sidebar on desktop */
 @media (min-width: 1024px) {
-  .desktop-sidebar {
-    position: static;
-    transform: translateX(0);
+  .desktop-content {
+    margin-left: 16rem; /* 256px / 16 = 16rem */
+  }
+}
+
+/* Fix for mobile navigation */
+@media (max-width: 1023px) {
+  .desktop-content {
+    margin-left: 0 !important;
   }
 }

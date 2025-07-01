@@ -266,7 +266,7 @@ export default function PolicyList() {
         <select
           value={filterType}
           onChange={(e) => setFilterType(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="form-element px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
         >
           <option value="all">Todos los tipos</option>
           {policyTypes.map((type) => (
@@ -279,7 +279,7 @@ export default function PolicyList() {
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="form-element px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
         >
           <option value="all">Todos los estados</option>
           <option value="activa">Activa</option>
@@ -514,8 +514,8 @@ function PolicyModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-20 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-lg bg-white">
+    <div className="modal-backdrop fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+      <div className="modal-content relative top-20 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-lg bg-white">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-medium text-gray-900">
             {policy ? 'Editar Póliza' : 'Nueva Póliza'}
@@ -539,7 +539,7 @@ function PolicyModal({
                 required
                 value={formData.policy_number}
                 onChange={(e) => setFormData({ ...formData, policy_number: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -551,7 +551,7 @@ function PolicyModal({
                 required
                 value={formData.policyholder_id}
                 onChange={(e) => setFormData({ ...formData, policyholder_id: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
               >
                 <option value="">Seleccionar asegurado</option>
                 {policyholders.map((ph) => (
@@ -570,7 +570,7 @@ function PolicyModal({
                 required
                 value={formData.policy_type_id}
                 onChange={(e) => handlePolicyTypeChange(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
               >
                 <option value="">Seleccionar tipo</option>
                 {policyTypes.map((type) => (
@@ -588,7 +588,7 @@ function PolicyModal({
               <select
                 value={formData.company_id}
                 onChange={(e) => handleCompanyChange(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
               >
                 <option value="">Seleccionar compañía</option>
                 {companies.map((company) => (
@@ -608,7 +608,7 @@ function PolicyModal({
                   type="text"
                   value={formData.insurance_company}
                   onChange={(e) => setFormData({ ...formData, insurance_company: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Nombre de la compañía"
                 />
               </div>
@@ -622,7 +622,7 @@ function PolicyModal({
                 <select
                   value={formData.coverage_type_id}
                   onChange={(e) => handleCoverageTypeChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 >
                   <option value="">Seleccionar cobertura</option>
                   {availableCoverageTypes.map((coverage) => (
@@ -643,7 +643,7 @@ function PolicyModal({
                 required
                 value={formData.start_date}
                 onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -656,7 +656,7 @@ function PolicyModal({
                 required
                 value={formData.end_date}
                 onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -670,7 +670,7 @@ function PolicyModal({
                 required
                 value={formData.premium_amount}
                 onChange={(e) => setFormData({ ...formData, premium_amount: parseFloat(e.target.value) || 0 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -682,7 +682,7 @@ function PolicyModal({
                 required
                 value={formData.currency_code}
                 onChange={(e) => setFormData({ ...formData, currency_code: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
               >
                 {currencies.map((currency) => (
                   <option key={currency.id} value={currency.code}>
@@ -700,7 +700,7 @@ function PolicyModal({
                 required
                 value={formData.payment_frequency}
                 onChange={(e) => setFormData({ ...formData, payment_frequency: e.target.value as any })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
               >
                 <option value="mensual">Mensual</option>
                 <option value="trimestral">Trimestral</option>
@@ -716,7 +716,7 @@ function PolicyModal({
               <select
                 value={formData.status}
                 onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
               >
                 <option value="activa">Activa</option>
                 <option value="vencida">Vencida</option>
