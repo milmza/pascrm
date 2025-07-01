@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { Plus, Search, Edit2, Trash2, FileText, Eye, EyeOff, GripVertical } from 'lucide-react'
-import { supabase, PolicyType } from '../lib/supabase'
+import { Plus, Search, Edit2, Trash2, FileText, Eye, EyeOff, GripVertical, Settings } from 'lucide-react'
+import { supabase, PolicyType, CustomField, getDefaultCustomFields } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function PolicyTypesList() {
@@ -10,6 +10,7 @@ export default function PolicyTypesList() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [showModal, setShowModal] = useState(false)
+  const [showFieldsModal, setShowFieldsModal] = useState(false)
   const [editingPolicyType, setEditingPolicyType] = useState<PolicyType | null>(null)
 
   useEffect(() => {
@@ -49,6 +50,11 @@ export default function PolicyTypesList() {
     setShowModal(true)
   }
 
+  const handleEditFields = (policyType: PolicyType) => {
+    setEditingPolicyType(policyType)
+    setShowFieldsModal(true)
+  }
+
   const handleDelete = async (id: string) => {
     if (!confirm('¿Estás seguro de que quieres eliminar este tipo de póliza?')) {
       return
@@ -83,20 +89,6 @@ export default function PolicyTypesList() {
     }
   }
 
-  const updateSortOrder = async (id: string, newOrder: number) => {
-    try {
-      const { error } = await supabase
-        .from('policy_types')
-        .update({ sort_order: newOrder })
-        .eq('id', id)
-
-      if (error) throw error
-      await loadPolicyTypes()
-    } catch (error) {
-      console.error('Error updating sort order:', error)
-    }
-  }
-
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -112,7 +104,7 @@ export default function PolicyTypesList() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Tipos de Pólizas</h1>
           <p className="mt-1 text-sm text-gray-600">
-            Gestiona los tipos de pólizas disponibles en tu sistema
+            Gestiona los tipos de pólizas y sus campos personalizados
           </p>
         </div>
         <button
@@ -150,7 +142,7 @@ export default function PolicyTypesList() {
             </h3>
           </div>
           <div className="divide-y divide-gray-200">
-            {filteredPolicyTypes.map((policyType, index) => (
+            {filteredPolicyTypes.map((policyType) => (
               <div key={policyType.id} className="px-6 py-4 hover:bg-gray-50 transition-colors duration-200">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4 flex-1">
@@ -175,13 +167,25 @@ export default function PolicyTypesList() {
                           {policyType.description}
                         </p>
                       )}
-                      <p className="text-xs text-gray-500 mt-1">
-                        Orden: {policyType.sort_order}
-                      </p>
+                      <div className="flex items-center space-x-4 mt-2">
+                        <p className="text-xs text-gray-500">
+                          Orden: {policyType.sort_order}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Campos personalizados: {policyType.custom_fields?.length || 0}
+                        </p>
+                      </div>
                     </div>
                   </div>
 
                   <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => handleEditFields(policyType)}
+                      className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors duration-200"
+                      title="Configurar campos personalizados"
+                    >
+                      <Settings className="w-4 h-4" />
+                    </button>
                     <button
                       onClick={() => toggleStatus(policyType.id, policyType.is_active)}
                       className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
@@ -228,6 +232,18 @@ export default function PolicyTypesList() {
           }}
         />
       )}
+
+      {/* Modal for Custom Fields */}
+      {showFieldsModal && (
+        <CustomFieldsModal
+          policyType={editingPolicyType}
+          onClose={() => setShowFieldsModal(false)}
+          onSave={() => {
+            loadPolicyTypes()
+            setShowFieldsModal(false)
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -250,6 +266,7 @@ function PolicyTypeModal({
     icon: policyType?.icon || '📋',
     is_active: policyType?.is_active ?? true,
     sort_order: policyType?.sort_order || 0,
+    custom_fields: policyType?.custom_fields || [],
   })
 
   const commonIcons = [
@@ -265,6 +282,10 @@ function PolicyTypeModal({
       const dataToSave = {
         ...formData,
         agent_id: user!.id,
+        // Si es un nuevo tipo de póliza, generar campos por defecto
+        custom_fields: formData.custom_fields.length > 0 
+          ? formData.custom_fields 
+          : getDefaultCustomFields(formData.name)
       }
 
       if (policyType) {
@@ -392,6 +413,15 @@ function PolicyTypeModal({
             </div>
           </div>
 
+          {!policyType && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-sm text-blue-700">
+                💡 <strong>Campos personalizados:</strong> Se generarán automáticamente campos específicos para este tipo de póliza. 
+                Podrás personalizarlos después usando el botón de configuración.
+              </p>
+            </div>
+          )}
+
           <div className="flex justify-end space-x-3 pt-4">
             <button
               type="button"
@@ -406,6 +436,286 @@ function PolicyTypeModal({
               className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
             >
               {loading ? 'Guardando...' : 'Guardar'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// Custom Fields Modal Component
+function CustomFieldsModal({ 
+  policyType, 
+  onClose, 
+  onSave 
+}: { 
+  policyType: PolicyType | null
+  onClose: () => void
+  onSave: () => void
+}) {
+  const { user } = useAuth()
+  const [loading, setLoading] = useState(false)
+  const [customFields, setCustomFields] = useState<CustomField[]>(
+    policyType?.custom_fields || getDefaultCustomFields(policyType?.name || '')
+  )
+
+  const fieldTypes = [
+    { value: 'text', label: 'Texto' },
+    { value: 'number', label: 'Número' },
+    { value: 'date', label: 'Fecha' },
+    { value: 'select', label: 'Lista desplegable' },
+    { value: 'textarea', label: 'Texto largo' },
+    { value: 'email', label: 'Email' },
+    { value: 'tel', label: 'Teléfono' },
+  ]
+
+  const addField = () => {
+    const newField: CustomField = {
+      id: `field_${Date.now()}`,
+      name: '',
+      label: '',
+      type: 'text',
+      required: false,
+      placeholder: '',
+    }
+    setCustomFields([...customFields, newField])
+  }
+
+  const updateField = (index: number, updates: Partial<CustomField>) => {
+    const updated = [...customFields]
+    updated[index] = { ...updated[index], ...updates }
+    setCustomFields(updated)
+  }
+
+  const removeField = (index: number) => {
+    setCustomFields(customFields.filter((_, i) => i !== index))
+  }
+
+  const moveField = (index: number, direction: 'up' | 'down') => {
+    const newIndex = direction === 'up' ? index - 1 : index + 1
+    if (newIndex < 0 || newIndex >= customFields.length) return
+
+    const updated = [...customFields]
+    const temp = updated[index]
+    updated[index] = updated[newIndex]
+    updated[newIndex] = temp
+    setCustomFields(updated)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+
+    try {
+      const { error } = await supabase
+        .from('policy_types')
+        .update({ custom_fields: customFields })
+        .eq('id', policyType!.id)
+
+      if (error) throw error
+      onSave()
+    } catch (error) {
+      console.error('Error saving custom fields:', error)
+      alert('Error al guardar los campos personalizados')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadDefaults = () => {
+    if (confirm('¿Cargar campos por defecto? Esto reemplazará la configuración actual.')) {
+      setCustomFields(getDefaultCustomFields(policyType?.name || ''))
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+      <div className="relative top-10 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-lg bg-white">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-medium text-gray-900">
+              Campos Personalizados - {policyType?.icon} {policyType?.name}
+            </h3>
+            <p className="text-sm text-gray-600">
+              Configura los campos específicos para este tipo de póliza
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            ✕
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h4 className="text-md font-medium text-gray-900">
+              Campos ({customFields.length})
+            </h4>
+            <div className="space-x-2">
+              <button
+                type="button"
+                onClick={loadDefaults}
+                className="px-3 py-1 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+              >
+                Cargar por Defecto
+              </button>
+              <button
+                type="button"
+                onClick={addField}
+                className="px-3 py-1 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                + Agregar Campo
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-4 max-h-96 overflow-y-auto">
+            {customFields.map((field, index) => (
+              <div key={field.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Nombre del Campo *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={field.name}
+                      onChange={(e) => updateField(index, { name: e.target.value })}
+                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      placeholder="ej: marca"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Etiqueta *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={field.label}
+                      onChange={(e) => updateField(index, { label: e.target.value })}
+                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      placeholder="ej: Marca del Vehículo"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Tipo *
+                    </label>
+                    <select
+                      value={field.type}
+                      onChange={(e) => updateField(index, { type: e.target.value as any })}
+                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      {fieldTypes.map((type) => (
+                        <option key={type.value} value={type.value}>
+                          {type.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <label className="flex items-center text-xs">
+                      <input
+                        type="checkbox"
+                        checked={field.required}
+                        onChange={(e) => updateField(index, { required: e.target.checked })}
+                        className="rounded border-gray-300 text-blue-600 text-xs"
+                      />
+                      <span className="ml-1">Requerido</span>
+                    </label>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Placeholder
+                    </label>
+                    <input
+                      type="text"
+                      value={field.placeholder || ''}
+                      onChange={(e) => updateField(index, { placeholder: e.target.value })}
+                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      placeholder="Texto de ayuda"
+                    />
+                  </div>
+
+                  {field.type === 'select' && (
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Opciones (separadas por coma)
+                      </label>
+                      <input
+                        type="text"
+                        value={field.options?.join(', ') || ''}
+                        onChange={(e) => updateField(index, { 
+                          options: e.target.value.split(',').map(opt => opt.trim()).filter(opt => opt) 
+                        })}
+                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder="Opción 1, Opción 2, Opción 3"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-300">
+                  <div className="flex space-x-1">
+                    <button
+                      type="button"
+                      onClick={() => moveField(index, 'up')}
+                      disabled={index === 0}
+                      className="px-2 py-1 text-xs border border-gray-300 rounded disabled:opacity-50"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveField(index, 'down')}
+                      disabled={index === customFields.length - 1}
+                      className="px-2 py-1 text-xs border border-gray-300 rounded disabled:opacity-50"
+                    >
+                      ↓
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeField(index)}
+                    className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+                  >
+                    Eliminar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {customFields.length === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              <p>No hay campos configurados.</p>
+              <p className="text-sm">Haz clic en "Agregar Campo" o "Cargar por Defecto" para comenzar.</p>
+            </div>
+          )}
+
+          <div className="flex justify-end space-x-3 pt-4 border-t">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+            >
+              {loading ? 'Guardando...' : 'Guardar Campos'}
             </button>
           </div>
         </form>

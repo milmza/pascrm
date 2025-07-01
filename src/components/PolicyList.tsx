@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Plus, Search, Edit2, Trash2, FileText, Calendar, DollarSign } from 'lucide-react'
-import { supabase, Policy, Policyholder, InsuranceCompany, CoverageType, PolicyType, Currency } from '../lib/supabase'
+import { supabase, Policy, Policyholder, InsuranceCompany, CoverageType, PolicyType, Currency, CustomField } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function PolicyList() {
@@ -216,6 +216,10 @@ export default function PolicyList() {
     }
   }
 
+  const getCustomFieldValue = (policy: Policy, fieldName: string) => {
+    return policy.custom_data?.[fieldName] || ''
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -342,6 +346,30 @@ export default function PolicyList() {
                       )}
                     </div>
 
+                    {/* Custom Fields Preview */}
+                    {policy.policy_type_obj?.custom_fields && policy.custom_data && (
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <h5 className="text-xs font-medium text-gray-700 mb-2">Detalles del Bien Asegurado</h5>
+                        <div className="space-y-1">
+                          {policy.policy_type_obj.custom_fields.slice(0, 3).map((field) => {
+                            const value = getCustomFieldValue(policy, field.name)
+                            if (!value) return null
+                            return (
+                              <div key={field.id} className="flex justify-between text-xs">
+                                <span className="text-gray-600">{field.label}:</span>
+                                <span className="text-gray-900 font-medium">{value}</span>
+                              </div>
+                            )
+                          })}
+                          {policy.policy_type_obj.custom_fields.length > 3 && (
+                            <p className="text-xs text-gray-500 italic">
+                              +{policy.policy_type_obj.custom_fields.length - 3} campos más
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(policy.status)}`}>
                         {policy.status.charAt(0).toUpperCase() + policy.status.slice(1)}
@@ -436,13 +464,17 @@ function PolicyModal({
     currency_code: policy?.currency_code || 'EUR',
     payment_frequency: policy?.payment_frequency || 'mensual',
     coverage_details: policy?.coverage_details || {},
+    custom_data: policy?.custom_data || {},
     status: policy?.status || 'activa',
   })
+
+  // Get selected policy type and its custom fields
+  const selectedPolicyType = policyTypes.find(pt => pt.id === formData.policy_type_id)
+  const customFields = selectedPolicyType?.custom_fields || []
 
   // Filter coverage types based on selected company and policy type
   const availableCoverageTypes = coverageTypes.filter(ct => {
     const matchesCompany = !formData.company_id || ct.company_id === formData.company_id
-    const selectedPolicyType = policyTypes.find(pt => pt.id === formData.policy_type_id)
     const matchesType = !selectedPolicyType || ct.policy_type === selectedPolicyType.name.toLowerCase()
     return matchesCompany && matchesType
   })
@@ -464,6 +496,7 @@ function PolicyModal({
       policy_type_id: policyTypeId,
       policy_type: selectedType?.name.toLowerCase() || '',
       coverage_type_id: '', // Reset coverage type when policy type changes
+      custom_data: {}, // Reset custom data when policy type changes
     })
   }
 
@@ -475,6 +508,89 @@ function PolicyModal({
       premium_amount: selectedCoverage?.base_premium || formData.premium_amount,
       currency_code: selectedCoverage?.currency_code || formData.currency_code,
     })
+  }
+
+  const handleCustomFieldChange = (fieldName: string, value: any) => {
+    setFormData({
+      ...formData,
+      custom_data: {
+        ...formData.custom_data,
+        [fieldName]: value
+      }
+    })
+  }
+
+  const renderCustomField = (field: CustomField) => {
+    const value = formData.custom_data[field.name] || ''
+
+    switch (field.type) {
+      case 'select':
+        return (
+          <select
+            value={value}
+            onChange={(e) => handleCustomFieldChange(field.name, e.target.value)}
+            className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            required={field.required}
+          >
+            <option value="">Seleccionar...</option>
+            {field.options?.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        )
+
+      case 'textarea':
+        return (
+          <textarea
+            value={value}
+            onChange={(e) => handleCustomFieldChange(field.name, e.target.value)}
+            className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder={field.placeholder}
+            required={field.required}
+            rows={3}
+          />
+        )
+
+      case 'number':
+        return (
+          <input
+            type="number"
+            value={value}
+            onChange={(e) => handleCustomFieldChange(field.name, parseFloat(e.target.value) || '')}
+            className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder={field.placeholder}
+            required={field.required}
+            min={field.validation?.min}
+            max={field.validation?.max}
+          />
+        )
+
+      case 'date':
+        return (
+          <input
+            type="date"
+            value={value}
+            onChange={(e) => handleCustomFieldChange(field.name, e.target.value)}
+            className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required={field.required}
+          />
+        )
+
+      default:
+        return (
+          <input
+            type={field.type}
+            value={value}
+            onChange={(e) => handleCustomFieldChange(field.name, e.target.value)}
+            className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder={field.placeholder}
+            required={field.required}
+            pattern={field.validation?.pattern}
+          />
+        )
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -515,7 +631,7 @@ function PolicyModal({
 
   return (
     <div className="modal-backdrop fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
-      <div className="modal-content relative top-20 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-lg bg-white">
+      <div className="modal-content relative top-10 mx-auto p-5 border w-full max-w-5xl shadow-lg rounded-lg bg-white">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-medium text-gray-900">
             {policy ? 'Editar Póliza' : 'Nueva Póliza'}
@@ -528,205 +644,229 @@ function PolicyModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Número de Póliza *
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.policy_number}
-                onChange={(e) => setFormData({ ...formData, policy_number: e.target.value })}
-                className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Asegurado *
-              </label>
-              <select
-                required
-                value={formData.policyholder_id}
-                onChange={(e) => setFormData({ ...formData, policyholder_id: e.target.value })}
-                className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-              >
-                <option value="">Seleccionar asegurado</option>
-                {policyholders.map((ph) => (
-                  <option key={ph.id} value={ph.id}>
-                    {ph.first_name} {ph.last_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tipo de Seguro *
-              </label>
-              <select
-                required
-                value={formData.policy_type_id}
-                onChange={(e) => handlePolicyTypeChange(e.target.value)}
-                className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-              >
-                <option value="">Seleccionar tipo</option>
-                {policyTypes.map((type) => (
-                  <option key={type.id} value={type.id}>
-                    {type.icon} {type.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Compañía Aseguradora
-              </label>
-              <select
-                value={formData.company_id}
-                onChange={(e) => handleCompanyChange(e.target.value)}
-                className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-              >
-                <option value="">Seleccionar compañía</option>
-                {companies.map((company) => (
-                  <option key={company.id} value={company.id}>
-                    {company.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {!formData.company_id && (
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Basic Information */}
+          <div>
+            <h4 className="text-md font-medium text-gray-900 mb-3">Información Básica</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nombre de Compañía (Manual)
+                  Número de Póliza *
                 </label>
                 <input
                   type="text"
-                  value={formData.insurance_company}
-                  onChange={(e) => setFormData({ ...formData, insurance_company: e.target.value })}
+                  required
+                  value={formData.policy_number}
+                  onChange={(e) => setFormData({ ...formData, policy_number: e.target.value })}
                   className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Nombre de la compañía"
                 />
               </div>
-            )}
 
-            {availableCoverageTypes.length > 0 && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tipo de Cobertura
+                  Asegurado *
                 </label>
                 <select
-                  value={formData.coverage_type_id}
-                  onChange={(e) => handleCoverageTypeChange(e.target.value)}
+                  required
+                  value={formData.policyholder_id}
+                  onChange={(e) => setFormData({ ...formData, policyholder_id: e.target.value })}
                   className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 >
-                  <option value="">Seleccionar cobertura</option>
-                  {availableCoverageTypes.map((coverage) => (
-                    <option key={coverage.id} value={coverage.id}>
-                      {coverage.name} {coverage.base_premium > 0 && `- ${coverage.base_premium} ${coverage.currency_code}`}
+                  <option value="">Seleccionar asegurado</option>
+                  {policyholders.map((ph) => (
+                    <option key={ph.id} value={ph.id}>
+                      {ph.first_name} {ph.last_name}
                     </option>
                   ))}
                 </select>
               </div>
-            )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Fecha de Inicio *
-              </label>
-              <input
-                type="date"
-                required
-                value={formData.start_date}
-                onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tipo de Seguro *
+                </label>
+                <select
+                  required
+                  value={formData.policy_type_id}
+                  onChange={(e) => handlePolicyTypeChange(e.target.value)}
+                  className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  <option value="">Seleccionar tipo</option>
+                  {policyTypes.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.icon} {type.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Fecha de Vencimiento *
-              </label>
-              <input
-                type="date"
-                required
-                value={formData.end_date}
-                onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-                className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Compañía Aseguradora
+                </label>
+                <select
+                  value={formData.company_id}
+                  onChange={(e) => handleCompanyChange(e.target.value)}
+                  className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  <option value="">Seleccionar compañía</option>
+                  {companies.map((company) => (
+                    <option key={company.id} value={company.id}>
+                      {company.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Monto de Prima *
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                required
-                value={formData.premium_amount}
-                onChange={(e) => setFormData({ ...formData, premium_amount: parseFloat(e.target.value) || 0 })}
-                className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+              {!formData.company_id && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nombre de Compañía (Manual)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.insurance_company}
+                    onChange={(e) => setFormData({ ...formData, insurance_company: e.target.value })}
+                    className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Nombre de la compañía"
+                  />
+                </div>
+              )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Moneda *
-              </label>
-              <select
-                required
-                value={formData.currency_code}
-                onChange={(e) => setFormData({ ...formData, currency_code: e.target.value })}
-                className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-              >
-                {currencies.map((currency) => (
-                  <option key={currency.id} value={currency.code}>
-                    {currency.code} - {currency.name} ({currency.symbol})
-                  </option>
-                ))}
-              </select>
-            </div>
+              {availableCoverageTypes.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Tipo de Cobertura
+                  </label>
+                  <select
+                    value={formData.coverage_type_id}
+                    onChange={(e) => handleCoverageTypeChange(e.target.value)}
+                    className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="">Seleccionar cobertura</option>
+                    {availableCoverageTypes.map((coverage) => (
+                      <option key={coverage.id} value={coverage.id}>
+                        {coverage.name} {coverage.base_premium > 0 && `- ${coverage.base_premium} ${coverage.currency_code}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Frecuencia de Pago *
-              </label>
-              <select
-                required
-                value={formData.payment_frequency}
-                onChange={(e) => setFormData({ ...formData, payment_frequency: e.target.value as any })}
-                className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-              >
-                <option value="mensual">Mensual</option>
-                <option value="trimestral">Trimestral</option>
-                <option value="semestral">Semestral</option>
-                <option value="anual">Anual</option>
-              </select>
-            </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Fecha de Inicio *
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={formData.start_date}
+                  onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                  className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Estado
-              </label>
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-              >
-                <option value="activa">Activa</option>
-                <option value="vencida">Vencida</option>
-                <option value="cancelada">Cancelada</option>
-                <option value="pendiente">Pendiente</option>
-              </select>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Fecha de Vencimiento *
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={formData.end_date}
+                  onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                  className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Monto de Prima *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  value={formData.premium_amount}
+                  onChange={(e) => setFormData({ ...formData, premium_amount: parseFloat(e.target.value) || 0 })}
+                  className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Moneda *
+                </label>
+                <select
+                  required
+                  value={formData.currency_code}
+                  onChange={(e) => setFormData({ ...formData, currency_code: e.target.value })}
+                  className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  {currencies.map((currency) => (
+                    <option key={currency.id} value={currency.code}>
+                      {currency.code} - {currency.name} ({currency.symbol})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Frecuencia de Pago *
+                </label>
+                <select
+                  required
+                  value={formData.payment_frequency}
+                  onChange={(e) => setFormData({ ...formData, payment_frequency: e.target.value as any })}
+                  className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  <option value="mensual">Mensual</option>
+                  <option value="trimestral">Trimestral</option>
+                  <option value="semestral">Semestral</option>
+                  <option value="anual">Anual</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Estado
+                </label>
+                <select
+                  value={formData.status}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                  className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  <option value="activa">Activa</option>
+                  <option value="vencida">Vencida</option>
+                  <option value="cancelada">Cancelada</option>
+                  <option value="pendiente">Pendiente</option>
+                </select>
+              </div>
             </div>
           </div>
 
-          <div className="flex justify-end space-x-3 pt-4">
+          {/* Custom Fields */}
+          {customFields.length > 0 && (
+            <div>
+              <h4 className="text-md font-medium text-gray-900 mb-3 flex items-center">
+                {selectedPolicyType?.icon} Información del Bien Asegurado
+                <span className="ml-2 text-sm text-gray-500">({selectedPolicyType?.name})</span>
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {customFields.map((field) => (
+                  <div key={field.id}>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {field.label} {field.required && '*'}
+                    </label>
+                    {renderCustomField(field)}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end space-x-3 pt-4 border-t">
             <button
               type="button"
               onClick={onClose}
