@@ -452,11 +452,11 @@ function PolicyModal({
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     policy_number: policy?.policy_number || '',
-    policyholder_id: policy?.policyholder_id || '',
+    policyholder_id: policy?.policyholder_id || null,
     policy_type: policy?.policy_type || '',
-    policy_type_id: policy?.policy_type_id || '',
-    company_id: policy?.company_id || '',
-    coverage_type_id: policy?.coverage_type_id || '',
+    policy_type_id: policy?.policy_type_id || null,
+    company_id: policy?.company_id || null,
+    coverage_type_id: policy?.coverage_type_id || null,
     insurance_company: policy?.insurance_company || '',
     start_date: policy?.start_date || '',
     end_date: policy?.end_date || '',
@@ -474,8 +474,17 @@ function PolicyModal({
 
   // Filter coverage types based on selected company and policy type
   const availableCoverageTypes = coverageTypes.filter(ct => {
-    const matchesCompany = !formData.company_id || ct.company_id === formData.company_id
-    const matchesType = !selectedPolicyType || ct.policy_type === selectedPolicyType.name.toLowerCase()
+    // Both company and policy type must be selected
+    if (!formData.company_id || !selectedPolicyType) {
+      return false
+    }
+    
+    // Must match the selected company
+    const matchesCompany = ct.company_id === formData.company_id
+    
+    // Must match the policy type name (case insensitive)
+    const matchesType = ct.policy_type?.toLowerCase() === selectedPolicyType.name.toLowerCase()
+    
     return matchesCompany && matchesType
   })
 
@@ -483,9 +492,9 @@ function PolicyModal({
     const selectedCompany = companies.find(c => c.id === companyId)
     setFormData({
       ...formData,
-      company_id: companyId,
+      company_id: companyId || null,
       insurance_company: selectedCompany?.name || '',
-      coverage_type_id: '', // Reset coverage type when company changes
+      coverage_type_id: null, // Reset coverage type when company changes
     })
   }
 
@@ -493,9 +502,9 @@ function PolicyModal({
     const selectedType = policyTypes.find(pt => pt.id === policyTypeId)
     setFormData({
       ...formData,
-      policy_type_id: policyTypeId,
+      policy_type_id: policyTypeId || null,
       policy_type: selectedType?.name.toLowerCase() || '',
-      coverage_type_id: '', // Reset coverage type when policy type changes
+      coverage_type_id: null, // Reset coverage type when policy type changes
       custom_data: {}, // Reset custom data when policy type changes
     })
   }
@@ -504,7 +513,7 @@ function PolicyModal({
     const selectedCoverage = coverageTypes.find(ct => ct.id === coverageTypeId)
     setFormData({
       ...formData,
-      coverage_type_id: coverageTypeId,
+      coverage_type_id: coverageTypeId || null,
       premium_amount: selectedCoverage?.base_premium || formData.premium_amount,
       currency_code: selectedCoverage?.currency_code || formData.currency_code,
     })
@@ -668,8 +677,8 @@ function PolicyModal({
                 </label>
                 <select
                   required
-                  value={formData.policyholder_id}
-                  onChange={(e) => setFormData({ ...formData, policyholder_id: e.target.value })}
+                  value={formData.policyholder_id || ''}
+                  onChange={(e) => setFormData({ ...formData, policyholder_id: e.target.value || null })}
                   className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 >
                   <option value="">Seleccionar asegurado</option>
@@ -687,7 +696,7 @@ function PolicyModal({
                 </label>
                 <select
                   required
-                  value={formData.policy_type_id}
+                  value={formData.policy_type_id || ''}
                   onChange={(e) => handlePolicyTypeChange(e.target.value)}
                   className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 >
@@ -702,10 +711,11 @@ function PolicyModal({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Compañía Aseguradora
+                  Compañía Aseguradora *
                 </label>
                 <select
-                  value={formData.company_id}
+                  required
+                  value={formData.company_id || ''}
                   onChange={(e) => handleCompanyChange(e.target.value)}
                   className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 >
@@ -718,28 +728,13 @@ function PolicyModal({
                 </select>
               </div>
 
-              {!formData.company_id && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nombre de Compañía (Manual)
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.insurance_company}
-                    onChange={(e) => setFormData({ ...formData, insurance_company: e.target.value })}
-                    className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Nombre de la compañía"
-                  />
-                </div>
-              )}
-
               {availableCoverageTypes.length > 0 && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Tipo de Cobertura
                   </label>
                   <select
-                    value={formData.coverage_type_id}
+                    value={formData.coverage_type_id || ''}
                     onChange={(e) => handleCoverageTypeChange(e.target.value)}
                     className="form-element w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                   >
@@ -866,6 +861,30 @@ function PolicyModal({
             </div>
           )}
 
+          {/* Coverage Type Info */}
+          {formData.company_id && formData.policy_type_id && availableCoverageTypes.length === 0 && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-yellow-800">
+                    No hay tipos de cobertura disponibles
+                  </h3>
+                  <div className="mt-2 text-sm text-yellow-700">
+                    <p>
+                      No se encontraron tipos de cobertura para la combinación de compañía y tipo de seguro seleccionados. 
+                      Puedes continuar sin seleccionar un tipo de cobertura específico.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="flex justify-end space-x-3 pt-4 border-t">
             <button
               type="button"
@@ -881,7 +900,7 @@ function PolicyModal({
             >
               {loading ? 'Guardando...' : 'Guardar'}
             </button>
-          </div>
+            </div>
         </form>
       </div>
     </div>
