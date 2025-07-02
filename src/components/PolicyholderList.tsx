@@ -408,18 +408,26 @@ function PolicyholderModal({
           .update(dataToSave)
           .eq('id', policyholder.id)
 
-        if (error) throw error
+        if (error) {
+          console.error('Error updating policyholder:', error)
+          alert(`Error al guardar el asegurado: ${error.message}`)
+          throw error
+        }
       } else {
         // Create new
         const { error } = await supabase
           .from('policyholders')
           .insert([dataToSave])
 
-        if (error) throw error
+        if (error) {
+          console.error('Error inserting policyholder:', error)
+          alert(`Error al guardar el asegurado: ${error.message}`)
+          throw error
+        }
       }
 
       onSave()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving policyholder:', error)
       alert('Error al guardar el asegurado')
     } finally {
