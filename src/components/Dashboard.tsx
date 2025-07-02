@@ -142,7 +142,7 @@ export default function Dashboard() {
 
       // Round all amounts
       Object.keys(monthlyPremiums).forEach(currency => {
-        monthlyPremiums[currency] = Math.round(monthlyPremiums[currency])
+        monthlyPremiums[currency] = Math.round(monthlyPremiums[currency] * 100) / 100
       })
 
       setStats({

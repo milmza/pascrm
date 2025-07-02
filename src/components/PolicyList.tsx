@@ -514,7 +514,6 @@ function PolicyModal({
     setFormData({
       ...formData,
       coverage_type_id: coverageTypeId || null,
-      premium_amount: selectedCoverage?.base_premium || formData.premium_amount,
       currency_code: selectedCoverage?.currency_code || formData.currency_code,
     })
   }
@@ -741,7 +740,7 @@ function PolicyModal({
                     <option value="">Seleccionar cobertura</option>
                     {availableCoverageTypes.map((coverage) => (
                       <option key={coverage.id} value={coverage.id}>
-                        {coverage.name} {coverage.base_premium > 0 && `- ${coverage.base_premium} ${coverage.currency_code}`}
+                        {coverage.name}
                       </option>
                     ))}
                   </select>
