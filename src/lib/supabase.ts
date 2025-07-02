@@ -58,8 +58,14 @@ export const verifyResetCode = async (email: string, code: string): Promise<bool
 // Types
 export interface Policyholder {
   id: string
-  first_name: string
-  last_name: string
+  entity_type: 'fisico' | 'juridico'
+  first_name?: string
+  last_name?: string
+  business_name?: string
+  business_type?: string
+  legal_representative?: string
+  dni?: string
+  cuil_cuit?: string
   email?: string
   phone?: string
   address?: string

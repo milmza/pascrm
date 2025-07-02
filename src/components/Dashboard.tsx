@@ -7,13 +7,17 @@ import {
   TrendingUp,
   Calendar,
   DollarSign,
-  Clock
+  Clock,
+  Building2,
+  User
 } from 'lucide-react'
 import { supabase, Policy, Notification, Policyholder, Currency } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
 interface DashboardStats {
   totalPolicyholders: number
+  physicalPersons: number
+  legalEntities: number
   totalPolicies: number
   activePolicies: number
   expiringPolicies: number
@@ -25,6 +29,8 @@ export default function Dashboard() {
   const { user } = useAuth()
   const [stats, setStats] = useState<DashboardStats>({
     totalPolicyholders: 0,
+    physicalPersons: 0,
+    legalEntities: 0,
     totalPolicies: 0,
     activePolicies: 0,
     expiringPolicies: 0,
@@ -61,6 +67,20 @@ export default function Dashboard() {
         .select('*', { count: 'exact', head: true })
         .eq('agent_id', user!.id)
 
+      // Get physical persons count
+      const { count: physicalPersonsCount } = await supabase
+        .from('policyholders')
+        .select('*', { count: 'exact', head: true })
+        .eq('agent_id', user!.id)
+        .eq('entity_type', 'fisico')
+
+      // Get legal entities count
+      const { count: legalEntitiesCount } = await supabase
+        .from('policyholders')
+        .select('*', { count: 'exact', head: true })
+        .eq('agent_id', user!.id)
+        .eq('entity_type', 'juridico')
+
       // Get total policies
       const { count: policiesCount } = await supabase
         .from('policies')
@@ -82,7 +102,7 @@ export default function Dashboard() {
         .from('policies')
         .select(`
           *,
-          policyholder:policyholders(first_name, last_name)
+          policyholder:policyholders(*)
         `)
         .eq('agent_id', user!.id)
         .eq('status', 'activa')
@@ -147,6 +167,8 @@ export default function Dashboard() {
 
       setStats({
         totalPolicyholders: policyholdersCount || 0,
+        physicalPersons: physicalPersonsCount || 0,
+        legalEntities: legalEntitiesCount || 0,
         totalPolicies: policiesCount || 0,
         activePolicies: activePoliciesCount || 0,
         expiringPolicies: expiringCount || 0,
@@ -204,6 +226,16 @@ export default function Dashboard() {
     }
   }
 
+  const getPolicyholderDisplayName = (policyholder: any) => {
+    if (!policyholder) return 'Sin asegurado'
+    
+    if (policyholder.entity_type === 'fisico') {
+      return `${policyholder.first_name} ${policyholder.last_name}`
+    } else {
+      return policyholder.business_name || 'Sin nombre'
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -237,6 +269,9 @@ export default function Dashboard() {
                   </dt>
                   <dd className="text-2xl font-bold text-gray-900">
                     {stats.totalPolicyholders}
+                  </dd>
+                  <dd className="text-xs text-gray-500">
+                    {stats.physicalPersons} físicas • {stats.legalEntities} jurídicas
                   </dd>
                 </dl>
               </div>
@@ -315,6 +350,39 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Entity Types Breakdown */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-white shadow-sm rounded-lg">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="text-lg font-medium text-gray-900 flex items-center">
+              <User className="w-5 h-5 mr-2 text-blue-600" />
+              Personas Físicas
+            </h3>
+          </div>
+          <div className="px-6 py-4">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-blue-600">{stats.physicalPersons}</div>
+              <p className="text-sm text-gray-600">Individuos particulares</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white shadow-sm rounded-lg">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="text-lg font-medium text-gray-900 flex items-center">
+              <Building2 className="w-5 h-5 mr-2 text-purple-600" />
+              Personas Jurídicas
+            </h3>
+          </div>
+          <div className="px-6 py-4">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-purple-600">{stats.legalEntities}</div>
+              <p className="text-sm text-gray-600">Empresas, ONGs, etc.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Two column layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Expiring Policies */}
@@ -332,7 +400,7 @@ export default function Dashboard() {
                   <div key={policy.id} className="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
                     <div className="flex-1">
                       <p className="text-sm font-medium text-gray-900">
-                        {policy.policyholder?.first_name} {policy.policyholder?.last_name}
+                        {getPolicyholderDisplayName(policy.policyholder)}
                       </p>
                       <p className="text-xs text-gray-600">
                         {policy.policy_type.charAt(0).toUpperCase() + policy.policy_type.slice(1)} - {policy.policy_number}
@@ -385,6 +453,7 @@ export default function Dashboard() {
                         {notification.message}
                       </p>
                       <p className="text-xs text-gray-500 mt-1">
+                        <Calendar className="w-3 h-3 mr-1 inline" />
                         {formatDate(notification.created_at)}
                       </p>
                     </div>

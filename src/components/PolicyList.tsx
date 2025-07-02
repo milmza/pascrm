@@ -30,13 +30,17 @@ export default function PolicyList() {
 
     // Filter by search term
     if (searchTerm) {
-      filtered = filtered.filter(policy =>
-        policy.policy_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        policy.insurance_company.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (policy.policyholder && 
-          `${policy.policyholder.first_name} ${policy.policyholder.last_name}`
-            .toLowerCase().includes(searchTerm.toLowerCase()))
-      )
+      filtered = filtered.filter(policy => {
+        const policyholderName = policy.policyholder 
+          ? (policy.policyholder.entity_type === 'fisico' 
+              ? `${policy.policyholder.first_name} ${policy.policyholder.last_name}`
+              : policy.policyholder.business_name || '')
+          : ''
+        
+        return policy.policy_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          policy.insurance_company.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          policyholderName.toLowerCase().includes(searchTerm.toLowerCase())
+      })
     }
 
     // Filter by type
@@ -78,7 +82,7 @@ export default function PolicyList() {
         .from('policyholders')
         .select('*')
         .eq('agent_id', user!.id)
-        .order('first_name', { ascending: true })
+        .order('created_at', { ascending: false })
 
       if (policyholdersError) throw policyholdersError
 
@@ -220,6 +224,14 @@ export default function PolicyList() {
     return policy.custom_data?.[fieldName] || ''
   }
 
+  const getPolicyholderDisplayName = (policyholder: Policyholder) => {
+    if (policyholder.entity_type === 'fisico') {
+      return `${policyholder.first_name} ${policyholder.last_name}`
+    } else {
+      return policyholder.business_name || 'Sin nombre'
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -334,7 +346,7 @@ export default function PolicyList() {
                   <div className="space-y-3">
                     <div>
                       <p className="text-sm font-medium text-gray-900">
-                        {policy.policyholder?.first_name} {policy.policyholder?.last_name}
+                        {policy.policyholder ? getPolicyholderDisplayName(policy.policyholder) : 'Sin asegurado'}
                       </p>
                       <p className="text-sm text-gray-600">
                         {policy.company?.name || policy.insurance_company}
@@ -601,6 +613,14 @@ function PolicyModal({
     }
   }
 
+  const getPolicyholderDisplayName = (policyholder: Policyholder) => {
+    if (policyholder.entity_type === 'fisico') {
+      return `${policyholder.first_name} ${policyholder.last_name}`
+    } else {
+      return policyholder.business_name || 'Sin nombre'
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -683,7 +703,7 @@ function PolicyModal({
                   <option value="">Seleccionar asegurado</option>
                   {policyholders.map((ph) => (
                     <option key={ph.id} value={ph.id}>
-                      {ph.first_name} {ph.last_name}
+                      {getPolicyholderDisplayName(ph)} ({ph.entity_type === 'fisico' ? 'Persona Física' : 'Persona Jurídica'})
                     </option>
                   ))}
                 </select>
