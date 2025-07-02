@@ -9,7 +9,7 @@ import {
   DollarSign,
   Clock
 } from 'lucide-react'
-import { supabase, Policy, Notification, Policyholder } from '../lib/supabase'
+import { supabase, Policy, Notification, Policyholder, Currency } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
 interface DashboardStats {
@@ -18,7 +18,7 @@ interface DashboardStats {
   activePolicies: number
   expiringPolicies: number
   unreadNotifications: number
-  monthlyPremiums: number
+  monthlyPremiums: { [currency: string]: number }
 }
 
 export default function Dashboard() {
@@ -29,10 +29,11 @@ export default function Dashboard() {
     activePolicies: 0,
     expiringPolicies: 0,
     unreadNotifications: 0,
-    monthlyPremiums: 0
+    monthlyPremiums: {}
   })
   const [recentNotifications, setRecentNotifications] = useState<Notification[]>([])
   const [expiringPolicies, setExpiringPolicies] = useState<Policy[]>([])
+  const [currencies, setCurrencies] = useState<Currency[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -44,6 +45,15 @@ export default function Dashboard() {
   const loadDashboardData = async () => {
     try {
       setLoading(true)
+
+      // Load currencies first
+      const { data: currenciesData } = await supabase
+        .from('currencies')
+        .select('*')
+        .eq('agent_id', user!.id)
+        .eq('is_active', true)
+
+      setCurrencies(currenciesData || [])
 
       // Get total policyholders
       const { count: policyholdersCount } = await supabase
@@ -98,30 +108,41 @@ export default function Dashboard() {
         .order('created_at', { ascending: false })
         .limit(5)
 
-      // Calculate monthly premiums
+      // Calculate monthly premiums by currency
       const { data: monthlyPolicies } = await supabase
         .from('policies')
-        .select('premium_amount, payment_frequency')
+        .select('premium_amount, payment_frequency, currency_code')
         .eq('agent_id', user!.id)
         .eq('status', 'activa')
 
-      let monthlyPremiums = 0
+      const monthlyPremiums: { [currency: string]: number } = {}
       monthlyPolicies?.forEach(policy => {
         const amount = policy.premium_amount
+        const currency = policy.currency_code || 'EUR'
+        
+        if (!monthlyPremiums[currency]) {
+          monthlyPremiums[currency] = 0
+        }
+        
         switch (policy.payment_frequency) {
           case 'mensual':
-            monthlyPremiums += amount
+            monthlyPremiums[currency] += amount
             break
           case 'trimestral':
-            monthlyPremiums += amount / 3
+            monthlyPremiums[currency] += amount / 3
             break
           case 'semestral':
-            monthlyPremiums += amount / 6
+            monthlyPremiums[currency] += amount / 6
             break
           case 'anual':
-            monthlyPremiums += amount / 12
+            monthlyPremiums[currency] += amount / 12
             break
         }
+      })
+
+      // Round all amounts
+      Object.keys(monthlyPremiums).forEach(currency => {
+        monthlyPremiums[currency] = Math.round(monthlyPremiums[currency])
       })
 
       setStats({
@@ -130,7 +151,7 @@ export default function Dashboard() {
         activePolicies: activePoliciesCount || 0,
         expiringPolicies: expiringCount || 0,
         unreadNotifications: unreadCount || 0,
-        monthlyPremiums: Math.round(monthlyPremiums)
+        monthlyPremiums
       })
 
       setRecentNotifications(notificationsData || [])
@@ -143,11 +164,15 @@ export default function Dashboard() {
     }
   }
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number, currencyCode: string) => {
+    const currency = currencies.find(c => c.code === currencyCode)
+    const symbol = currency?.symbol || currencyCode
+    
     return new Intl.NumberFormat('es-ES', {
-      style: 'currency',
-      currency: 'EUR'
-    }).format(amount)
+      style: 'decimal',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount) + ' ' + symbol
   }
 
   const formatDate = (dateString: string) => {
@@ -270,8 +295,18 @@ export default function Dashboard() {
                   <dt className="text-sm font-medium text-gray-500 truncate">
                     Primas Mensuales
                   </dt>
-                  <dd className="text-2xl font-bold text-gray-900">
-                    {formatCurrency(stats.monthlyPremiums)}
+                  <dd className="text-lg font-bold text-gray-900">
+                    {Object.keys(stats.monthlyPremiums).length > 0 ? (
+                      <div className="space-y-1">
+                        {Object.entries(stats.monthlyPremiums).map(([currency, amount]) => (
+                          <div key={currency} className="text-sm">
+                            {formatCurrency(amount, currency)}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-2xl">0</span>
+                    )}
                   </dd>
                 </dl>
               </div>

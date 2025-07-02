@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Plus, Search, Edit2, Trash2, Building2, Phone, Mail, Globe, Eye, EyeOff } from 'lucide-react'
-import { supabase, InsuranceCompany, CoverageType, Currency } from '../lib/supabase'
+import { supabase, InsuranceCompany, CoverageType, Currency, PolicyType } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function InsuranceCompanyList() {
@@ -9,6 +9,7 @@ export default function InsuranceCompanyList() {
   const [filteredCompanies, setFilteredCompanies] = useState<InsuranceCompany[]>([])
   const [coverageTypes, setCoverageTypes] = useState<CoverageType[]>([])
   const [currencies, setCurrencies] = useState<Currency[]>([])
+  const [policyTypes, setPolicyTypes] = useState<PolicyType[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [showModal, setShowModal] = useState(false)
@@ -66,9 +67,20 @@ export default function InsuranceCompanyList() {
 
       if (currenciesError) throw currenciesError
 
+      // Load policy types
+      const { data: policyTypesData, error: policyTypesError } = await supabase
+        .from('policy_types')
+        .select('*')
+        .eq('agent_id', user!.id)
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true })
+
+      if (policyTypesError) throw policyTypesError
+
       setCompanies(companiesData || [])
       setCoverageTypes(coverageData || [])
       setCurrencies(currenciesData || [])
+      setPolicyTypes(policyTypesData || [])
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
@@ -296,9 +308,6 @@ export default function InsuranceCompanyList() {
                             <p className="text-sm font-medium text-gray-900">{coverage.name}</p>
                             <div className="flex items-center space-x-2 text-xs text-gray-600">
                               <span className="capitalize">{coverage.policy_type}</span>
-                              {coverage.base_premium > 0 && (
-                                <span>• {formatCurrency(coverage.base_premium, coverage.currency_code)}</span>
-                              )}
                             </div>
                           </div>
                           <div className="flex space-x-1">
@@ -356,6 +365,7 @@ export default function InsuranceCompanyList() {
           coverage={editingCoverage}
           companies={companies.filter(c => c.is_active)}
           currencies={currencies}
+          policyTypes={policyTypes}
           selectedCompanyId={selectedCompanyId}
           onClose={() => setShowCoverageModal(false)}
           onSave={() => {
@@ -545,6 +555,7 @@ function CoverageModal({
   coverage, 
   companies,
   currencies,
+  policyTypes,
   selectedCompanyId,
   onClose, 
   onSave 
@@ -552,6 +563,7 @@ function CoverageModal({
   coverage: CoverageType | null
   companies: InsuranceCompany[]
   currencies: Currency[]
+  policyTypes: PolicyType[]
   selectedCompanyId: string
   onClose: () => void
   onSave: () => void
@@ -562,8 +574,7 @@ function CoverageModal({
     company_id: coverage?.company_id || selectedCompanyId || '',
     name: coverage?.name || '',
     description: coverage?.description || '',
-    policy_type: coverage?.policy_type || 'vida',
-    base_premium: coverage?.base_premium || 0,
+    policy_type: coverage?.policy_type || '',
     currency_code: coverage?.currency_code || 'EUR',
     is_active: coverage?.is_active ?? true,
   })
@@ -576,6 +587,7 @@ function CoverageModal({
       const dataToSave = {
         ...formData,
         agent_id: user!.id,
+        base_premium: 0, // Always set to 0 as requested
       }
 
       if (coverage) {
@@ -663,16 +675,12 @@ function CoverageModal({
                 onChange={(e) => setFormData({ ...formData, policy_type: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="vida">Vida</option>
-                <option value="auto">Auto</option>
-                <option value="moto">Moto</option>
-                <option value="bicicleta">Bicicleta</option>
-                <option value="hogar">Hogar</option>
-                <option value="salud">Salud</option>
-                <option value="viaje">Viaje</option>
-                <option value="mascotas">Mascotas</option>
-                <option value="responsabilidad civil">Responsabilidad Civil</option>
-                <option value="otro">Otro</option>
+                <option value="">Seleccionar tipo</option>
+                {policyTypes.map((type) => (
+                  <option key={type.id} value={type.name.toLowerCase()}>
+                    {type.icon} {type.name}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -686,20 +694,6 @@ function CoverageModal({
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Descripción de la cobertura..."
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Prima Base
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.base_premium}
-                onChange={(e) => setFormData({ ...formData, base_premium: parseFloat(e.target.value) || 0 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -720,7 +714,7 @@ function CoverageModal({
               </select>
             </div>
 
-            <div className="md:col-span-2">
+            <div className="flex items-end">
               <label className="flex items-center">
                 <input
                   type="checkbox"
