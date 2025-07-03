@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Plus, Search, Edit2, Trash2, User, Building2, Phone, Mail, MapPin, Calendar } from 'lucide-react'
+import { Plus, Search, Edit2, Trash2, Users, Building2, User, Phone, Mail, MapPin, Calendar } from 'lucide-react'
 import { supabase, Policyholder } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -9,7 +9,7 @@ export default function PolicyholderList() {
   const [filteredPolicyholders, setFilteredPolicyholders] = useState<Policyholder[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [filterType, setFilterType] = useState('all')
+  const [filterType, setFilterType] = useState('all') // all, fisico, juridico
   const [showModal, setShowModal] = useState(false)
   const [editingPolicyholder, setEditingPolicyholder] = useState<Policyholder | null>(null)
 
@@ -24,31 +24,23 @@ export default function PolicyholderList() {
 
     // Filter by search term
     if (searchTerm) {
-      filtered = filtered.filter(ph => {
+      filtered = filtered.filter(policyholder => {
         const searchLower = searchTerm.toLowerCase()
+        const fullName = policyholder.entity_type === 'fisico' 
+          ? `${policyholder.first_name || ''} ${policyholder.last_name || ''}`.toLowerCase()
+          : (policyholder.business_name || '').toLowerCase()
         
-        if (ph.entity_type === 'fisico') {
-          return (
-            ph.first_name?.toLowerCase().includes(searchLower) ||
-            ph.last_name?.toLowerCase().includes(searchLower) ||
-            ph.email?.toLowerCase().includes(searchLower) ||
-            ph.dni?.toLowerCase().includes(searchLower) ||
-            ph.cuil_cuit?.toLowerCase().includes(searchLower)
-          )
-        } else {
-          return (
-            ph.business_name?.toLowerCase().includes(searchLower) ||
-            ph.email?.toLowerCase().includes(searchLower) ||
-            ph.cuil_cuit?.toLowerCase().includes(searchLower) ||
-            ph.legal_representative?.toLowerCase().includes(searchLower)
-          )
-        }
+        return fullName.includes(searchLower) ||
+          (policyholder.email || '').toLowerCase().includes(searchLower) ||
+          (policyholder.phone || '').includes(searchTerm) ||
+          (policyholder.dni || '').includes(searchTerm) ||
+          (policyholder.cuil_cuit || '').includes(searchTerm)
       })
     }
 
     // Filter by entity type
     if (filterType !== 'all') {
-      filtered = filtered.filter(ph => ph.entity_type === filterType)
+      filtered = filtered.filter(policyholder => policyholder.entity_type === filterType)
     }
 
     setFilteredPolicyholders(filtered)
@@ -100,16 +92,44 @@ export default function PolicyholderList() {
     return new Date(dateString).toLocaleDateString('es-ES')
   }
 
-  const getPolicyholderDisplayName = (policyholder: Policyholder) => {
+  const getDisplayName = (policyholder: Policyholder) => {
     if (policyholder.entity_type === 'fisico') {
-      return `${policyholder.first_name} ${policyholder.last_name}`
+      return `${policyholder.first_name || ''} ${policyholder.last_name || ''}`.trim()
     } else {
       return policyholder.business_name || 'Sin nombre'
     }
   }
 
-  const getEntityTypeLabel = (type: string) => {
-    return type === 'fisico' ? 'Persona Física' : 'Persona Jurídica'
+  const formatCuilCuit = (value: string) => {
+    if (!value) return ''
+    // Remove any non-numeric characters
+    const numbers = value.replace(/\D/g, '')
+    
+    // Format as XX-XXXXXXXX-X for CUIL/CUIT
+    if (numbers.length >= 11) {
+      return `${numbers.slice(0, 2)}-${numbers.slice(2, 10)}-${numbers.slice(10, 11)}`
+    } else if (numbers.length >= 3) {
+      return `${numbers.slice(0, 2)}-${numbers.slice(2)}`
+    } else if (numbers.length >= 1) {
+      return numbers
+    }
+    return ''
+  }
+
+  const formatDni = (value: string) => {
+    if (!value) return ''
+    // Remove any non-numeric characters and format with dots
+    const numbers = value.replace(/\D/g, '')
+    
+    // Format as XX.XXX.XXX for DNI
+    if (numbers.length >= 8) {
+      return `${numbers.slice(0, 2)}.${numbers.slice(2, 5)}.${numbers.slice(5, 8)}`
+    } else if (numbers.length >= 5) {
+      return `${numbers.slice(0, 2)}.${numbers.slice(2, 5)}.${numbers.slice(5)}`
+    } else if (numbers.length >= 3) {
+      return `${numbers.slice(0, 2)}.${numbers.slice(2)}`
+    }
+    return numbers
   }
 
   if (loading) {
@@ -151,7 +171,7 @@ export default function PolicyholderList() {
             </div>
             <input
               type="text"
-              placeholder="Buscar por nombre, email, DNI o CUIL/CUIT..."
+              placeholder="Buscar por nombre, email, teléfono, DNI o CUIL/CUIT..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -170,9 +190,72 @@ export default function PolicyholderList() {
         </select>
       </div>
 
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white overflow-hidden shadow-sm rounded-lg">
+          <div className="p-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <Users className="h-8 w-8 text-blue-600" />
+              </div>
+              <div className="ml-5 w-0 flex-1">
+                <dl>
+                  <dt className="text-sm font-medium text-gray-500 truncate">
+                    Total Asegurados
+                  </dt>
+                  <dd className="text-2xl font-bold text-gray-900">
+                    {policyholders.length}
+                  </dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white overflow-hidden shadow-sm rounded-lg">
+          <div className="p-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <User className="h-8 w-8 text-green-600" />
+              </div>
+              <div className="ml-5 w-0 flex-1">
+                <dl>
+                  <dt className="text-sm font-medium text-gray-500 truncate">
+                    Personas Físicas
+                  </dt>
+                  <dd className="text-2xl font-bold text-gray-900">
+                    {policyholders.filter(p => p.entity_type === 'fisico').length}
+                  </dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white overflow-hidden shadow-sm rounded-lg">
+          <div className="p-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <Building2 className="h-8 w-8 text-purple-600" />
+              </div>
+              <div className="ml-5 w-0 flex-1">
+                <dl>
+                  <dt className="text-sm font-medium text-gray-500 truncate">
+                    Personas Jurídicas
+                  </dt>
+                  <dd className="text-2xl font-bold text-gray-900">
+                    {policyholders.filter(p => p.entity_type === 'juridico').length}
+                  </dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Policyholders Grid */}
       {filteredPolicyholders.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           {filteredPolicyholders.map((policyholder) => (
             <div key={policyholder.id} className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200">
               <div className="p-6">
@@ -180,10 +263,10 @@ export default function PolicyholderList() {
                   <div className="flex items-center">
                     <div className="flex-shrink-0">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        policyholder.entity_type === 'fisico' ? 'bg-blue-100' : 'bg-purple-100'
+                        policyholder.entity_type === 'fisico' ? 'bg-green-100' : 'bg-purple-100'
                       }`}>
                         {policyholder.entity_type === 'fisico' ? (
-                          <User className={`w-5 h-5 ${policyholder.entity_type === 'fisico' ? 'text-blue-600' : 'text-purple-600'}`} />
+                          <User className={`w-5 h-5 ${policyholder.entity_type === 'fisico' ? 'text-green-600' : 'text-purple-600'}`} />
                         ) : (
                           <Building2 className="w-5 h-5 text-purple-600" />
                         )}
@@ -191,10 +274,10 @@ export default function PolicyholderList() {
                     </div>
                     <div className="ml-3">
                       <h3 className="text-lg font-medium text-gray-900">
-                        {getPolicyholderDisplayName(policyholder)}
+                        {getDisplayName(policyholder)}
                       </h3>
                       <p className="text-sm text-gray-600">
-                        {getEntityTypeLabel(policyholder.entity_type)}
+                        {policyholder.entity_type === 'fisico' ? 'Persona Física' : 'Persona Jurídica'}
                       </p>
                     </div>
                   </div>
@@ -214,73 +297,69 @@ export default function PolicyholderList() {
                   </div>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {/* Identification */}
-                  <div>
-                    {policyholder.entity_type === 'fisico' ? (
-                      <>
-                        {policyholder.dni && (
-                          <p className="text-sm text-gray-600">
-                            <strong>DNI:</strong> {policyholder.dni}
-                          </p>
-                        )}
-                        {policyholder.cuil_cuit && (
-                          <p className="text-sm text-gray-600">
-                            <strong>CUIL:</strong> {policyholder.cuil_cuit}
-                          </p>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        {policyholder.cuil_cuit && (
-                          <p className="text-sm text-gray-600">
-                            <strong>CUIT:</strong> {policyholder.cuil_cuit}
-                          </p>
-                        )}
-                        {policyholder.business_type && (
-                          <p className="text-sm text-gray-600">
-                            <strong>Tipo:</strong> {policyholder.business_type}
-                          </p>
-                        )}
-                        {policyholder.legal_representative && (
-                          <p className="text-sm text-gray-600">
-                            <strong>Representante:</strong> {policyholder.legal_representative}
-                          </p>
-                        )}
-                      </>
-                    )}
-                  </div>
+                  {policyholder.entity_type === 'fisico' && policyholder.dni && (
+                    <div className="flex items-center text-sm text-gray-600">
+                      <span className="font-medium w-16">DNI:</span>
+                      <span>{formatDni(policyholder.dni)}</span>
+                    </div>
+                  )}
+                  
+                  {policyholder.cuil_cuit && (
+                    <div className="flex items-center text-sm text-gray-600">
+                      <span className="font-medium w-16">
+                        {policyholder.entity_type === 'fisico' ? 'CUIL:' : 'CUIT:'}
+                      </span>
+                      <span>{formatCuilCuit(policyholder.cuil_cuit)}</span>
+                    </div>
+                  )}
 
-                  {/* Contact Information */}
+                  {/* Business specific info */}
+                  {policyholder.entity_type === 'juridico' && (
+                    <>
+                      {policyholder.business_type && (
+                        <div className="flex items-center text-sm text-gray-600">
+                          <span className="font-medium w-16">Tipo:</span>
+                          <span>{policyholder.business_type}</span>
+                        </div>
+                      )}
+                      {policyholder.legal_representative && (
+                        <div className="flex items-center text-sm text-gray-600">
+                          <span className="font-medium w-16">Rep.:</span>
+                          <span>{policyholder.legal_representative}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* Contact info */}
                   {policyholder.email && (
                     <div className="flex items-center text-sm text-gray-600">
                       <Mail className="w-4 h-4 mr-2 text-gray-400" />
-                      {policyholder.email}
+                      <span className="truncate">{policyholder.email}</span>
                     </div>
                   )}
                   
                   {policyholder.phone && (
                     <div className="flex items-center text-sm text-gray-600">
                       <Phone className="w-4 h-4 mr-2 text-gray-400" />
-                      {policyholder.phone}
+                      <span>{policyholder.phone}</span>
                     </div>
                   )}
-
+                  
                   {policyholder.address && (
                     <div className="flex items-center text-sm text-gray-600">
                       <MapPin className="w-4 h-4 mr-2 text-gray-400" />
-                      <span className="truncate">
-                        {policyholder.address}
-                        {policyholder.city && `, ${policyholder.city}`}
-                      </span>
+                      <span className="truncate">{policyholder.address}</span>
                     </div>
                   )}
 
-                  {/* Birth Date for Physical Persons */}
+                  {/* Birth date for physical persons */}
                   {policyholder.entity_type === 'fisico' && policyholder.date_of_birth && (
                     <div className="flex items-center text-sm text-gray-600">
                       <Calendar className="w-4 h-4 mr-2 text-gray-400" />
-                      Nacimiento: {formatDate(policyholder.date_of_birth)}
+                      <span>Nacimiento: {formatDate(policyholder.date_of_birth)}</span>
                     </div>
                   )}
                 </div>
@@ -290,7 +369,7 @@ export default function PolicyholderList() {
         </div>
       ) : (
         <div className="text-center py-12">
-          <User className="mx-auto h-12 w-12 text-gray-400" />
+          <Users className="mx-auto h-12 w-12 text-gray-400" />
           <h3 className="mt-2 text-sm font-medium text-gray-900">No hay asegurados</h3>
           <p className="mt-1 text-sm text-gray-500">
             {searchTerm || filterType !== 'all' 
@@ -363,6 +442,43 @@ function PolicyholderModal({
     'Otro'
   ]
 
+  const handleNumericInput = (value: string, field: 'dni' | 'cuil_cuit') => {
+    // Remove any non-numeric characters
+    const numericValue = value.replace(/\D/g, '')
+    
+    // Limit length based on field type
+    const maxLength = field === 'dni' ? 8 : 11
+    const limitedValue = numericValue.slice(0, maxLength)
+    
+    setFormData({ ...formData, [field]: limitedValue })
+  }
+
+  const formatCuilCuit = (value: string) => {
+    if (!value) return ''
+    const numbers = value.replace(/\D/g, '')
+    
+    if (numbers.length >= 11) {
+      return `${numbers.slice(0, 2)}-${numbers.slice(2, 10)}-${numbers.slice(10, 11)}`
+    } else if (numbers.length >= 3) {
+      return `${numbers.slice(0, 2)}-${numbers.slice(2)}`
+    }
+    return numbers
+  }
+
+  const formatDni = (value: string) => {
+    if (!value) return ''
+    const numbers = value.replace(/\D/g, '')
+    
+    if (numbers.length >= 8) {
+      return `${numbers.slice(0, 2)}.${numbers.slice(2, 5)}.${numbers.slice(5, 8)}`
+    } else if (numbers.length >= 5) {
+      return `${numbers.slice(0, 2)}.${numbers.slice(2, 5)}.${numbers.slice(5)}`
+    } else if (numbers.length >= 3) {
+      return `${numbers.slice(0, 2)}.${numbers.slice(2)}`
+    }
+    return numbers
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -385,8 +501,8 @@ function PolicyholderModal({
 
       // Clean empty strings to null for database consistency
       Object.keys(dataToSave).forEach(key => {
-        if (dataToSave[key] === '') {
-          dataToSave[key] = null
+        if (dataToSave[key as keyof typeof dataToSave] === '') {
+          (dataToSave as any)[key] = null
         }
       })
 
@@ -408,9 +524,21 @@ function PolicyholderModal({
       }
 
       onSave()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving policyholder:', error)
-      alert('Error al guardar el asegurado')
+      
+      // Handle specific database errors
+      if (error.code === '23505') {
+        if (error.message.includes('dni')) {
+          alert('Ya existe un asegurado con este DNI')
+        } else if (error.message.includes('cuil_cuit')) {
+          alert('Ya existe un asegurado con este CUIL/CUIT')
+        } else {
+          alert('Ya existe un asegurado con estos datos')
+        }
+      } else {
+        alert('Error al guardar el asegurado: ' + (error.message || 'Error desconocido'))
+      }
     } finally {
       setLoading(false)
     }
@@ -448,10 +576,10 @@ function PolicyholderModal({
                   className="mr-3"
                 />
                 <div className="flex items-center">
-                  <User className="w-5 h-5 text-blue-600 mr-2" />
+                  <User className="w-5 h-5 text-green-600 mr-2" />
                   <div>
                     <div className="font-medium">Persona Física</div>
-                    <div className="text-sm text-gray-600">Individuos particulares</div>
+                    <div className="text-sm text-gray-500">Individuos particulares</div>
                   </div>
                 </div>
               </label>
@@ -469,7 +597,7 @@ function PolicyholderModal({
                   <Building2 className="w-5 h-5 text-purple-600 mr-2" />
                   <div>
                     <div className="font-medium">Persona Jurídica</div>
-                    <div className="text-sm text-gray-600">Empresas, ONGs, etc.</div>
+                    <div className="text-sm text-gray-500">Empresas, ONGs, etc.</div>
                   </div>
                 </div>
               </label>
@@ -513,10 +641,11 @@ function PolicyholderModal({
                   </label>
                   <input
                     type="text"
-                    value={formData.dni}
-                    onChange={(e) => setFormData({ ...formData, dni: e.target.value })}
+                    value={formatDni(formData.dni)}
+                    onChange={(e) => handleNumericInput(e.target.value, 'dni')}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="12345678"
+                    placeholder="12.345.678"
+                    maxLength={10}
                   />
                 </div>
 
@@ -526,10 +655,11 @@ function PolicyholderModal({
                   </label>
                   <input
                     type="text"
-                    value={formData.cuil_cuit}
-                    onChange={(e) => setFormData({ ...formData, cuil_cuit: e.target.value })}
+                    value={formatCuilCuit(formData.cuil_cuit)}
+                    onChange={(e) => handleNumericInput(e.target.value, 'cuil_cuit')}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="20-12345678-9"
+                    maxLength={13}
                   />
                 </div>
 
@@ -551,7 +681,7 @@ function PolicyholderModal({
           {/* Business Information for Legal Entities */}
           {formData.entity_type === 'juridico' && (
             <div>
-              <h4 className="text-md font-medium text-gray-900 mb-3">Información de la Entidad</h4>
+              <h4 className="text-md font-medium text-gray-900 mb-3">Información de la Empresa</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -563,7 +693,6 @@ function PolicyholderModal({
                     value={formData.business_name}
                     onChange={(e) => setFormData({ ...formData, business_name: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Nombre de la empresa u organización"
                   />
                 </div>
 
@@ -592,10 +721,11 @@ function PolicyholderModal({
                   <input
                     type="text"
                     required
-                    value={formData.cuil_cuit}
-                    onChange={(e) => setFormData({ ...formData, cuil_cuit: e.target.value })}
+                    value={formatCuilCuit(formData.cuil_cuit)}
+                    onChange={(e) => handleNumericInput(e.target.value, 'cuil_cuit')}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="30-12345678-9"
+                    maxLength={13}
                   />
                 </div>
 
