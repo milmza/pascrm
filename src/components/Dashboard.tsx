@@ -13,6 +13,9 @@ import {
 } from 'lucide-react'
 import { supabase, Policy, Notification, Policyholder, Currency } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { formatPolicyholderName } from '../utils/formatUtils'
+import BackupManager from './BackupManager'
+import BirthdayNotifications from './BirthdayNotifications'
 
 interface DashboardStats {
   totalPolicyholders: number
@@ -226,16 +229,6 @@ export default function Dashboard() {
     }
   }
 
-  const getPolicyholderDisplayName = (policyholder: any) => {
-    if (!policyholder) return 'Sin asegurado'
-    
-    if (policyholder.entity_type === 'fisico') {
-      return `${policyholder.first_name} ${policyholder.last_name}`
-    } else {
-      return policyholder.business_name || 'Sin nombre'
-    }
-  }
-
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -383,6 +376,12 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Birthday Notifications */}
+      <BirthdayNotifications />
+
+      {/* Backup Manager */}
+      <BackupManager />
+
       {/* Two column layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Expiring Policies */}
@@ -400,7 +399,7 @@ export default function Dashboard() {
                   <div key={policy.id} className="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
                     <div className="flex-1">
                       <p className="text-sm font-medium text-gray-900">
-                        {getPolicyholderDisplayName(policy.policyholder)}
+                        {formatPolicyholderName(policy.policyholder)}
                       </p>
                       <p className="text-xs text-gray-600">
                         {policy.policy_type.charAt(0).toUpperCase() + policy.policy_type.slice(1)} - {policy.policy_number}

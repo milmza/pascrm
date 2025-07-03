@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import { Plus, Search, Edit2, Trash2, Users, Building2, User, Phone, Mail, MapPin, Calendar } from 'lucide-react'
+import { Plus, Search, Edit2, Trash2, Users, Building2, User, Phone, Mail, MapPin, Calendar, MessageCircle } from 'lucide-react'
 import { supabase, Policyholder } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { formatPolicyholderName, openWhatsApp } from '../utils/formatUtils'
 
 export default function PolicyholderList() {
   const { user } = useAuth()
@@ -26,9 +27,7 @@ export default function PolicyholderList() {
     if (searchTerm) {
       filtered = filtered.filter(policyholder => {
         const searchLower = searchTerm.toLowerCase()
-        const fullName = policyholder.entity_type === 'fisico' 
-          ? `${policyholder.first_name || ''} ${policyholder.last_name || ''}`.toLowerCase()
-          : (policyholder.business_name || '').toLowerCase()
+        const fullName = formatPolicyholderName(policyholder).toLowerCase()
         
         return fullName.includes(searchLower) ||
           (policyholder.email || '').toLowerCase().includes(searchLower) ||
@@ -88,16 +87,19 @@ export default function PolicyholderList() {
     }
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('es-ES')
+  const handleWhatsApp = (policyholder: Policyholder) => {
+    if (!policyholder.phone) {
+      alert('Este asegurado no tiene número de teléfono registrado')
+      return
+    }
+    
+    const name = formatPolicyholderName(policyholder)
+    const message = `Hola ${name}, soy tu agente de seguros. ¿Cómo estás?`
+    openWhatsApp(policyholder.phone, message)
   }
 
-  const getDisplayName = (policyholder: Policyholder) => {
-    if (policyholder.entity_type === 'fisico') {
-      return `${policyholder.first_name || ''} ${policyholder.last_name || ''}`.trim()
-    } else {
-      return policyholder.business_name || 'Sin nombre'
-    }
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('es-ES')
   }
 
   const formatCuilCuit = (value: string) => {
@@ -274,7 +276,7 @@ export default function PolicyholderList() {
                     </div>
                     <div className="ml-3">
                       <h3 className="text-lg font-medium text-gray-900">
-                        {getDisplayName(policyholder)}
+                        {formatPolicyholderName(policyholder)}
                       </h3>
                       <p className="text-sm text-gray-600">
                         {policyholder.entity_type === 'fisico' ? 'Persona Física' : 'Persona Jurídica'}
@@ -282,6 +284,15 @@ export default function PolicyholderList() {
                     </div>
                   </div>
                   <div className="flex space-x-2">
+                    {policyholder.phone && (
+                      <button
+                        onClick={() => handleWhatsApp(policyholder)}
+                        className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors duration-200"
+                        title="Enviar WhatsApp"
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                      </button>
+                    )}
                     <button
                       onClick={() => handleEdit(policyholder)}
                       className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"

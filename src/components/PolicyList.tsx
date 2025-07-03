@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import { Plus, Search, Edit2, Trash2, FileText, Calendar, DollarSign } from 'lucide-react'
+import { Plus, Search, Edit2, Trash2, FileText, Calendar, DollarSign, MessageCircle } from 'lucide-react'
 import { supabase, Policy, Policyholder, InsuranceCompany, CoverageType, PolicyType, Currency, CustomField } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { formatPolicyholderName, openWhatsApp } from '../utils/formatUtils'
 
 export default function PolicyList() {
   const { user } = useAuth()
@@ -32,9 +33,7 @@ export default function PolicyList() {
     if (searchTerm) {
       filtered = filtered.filter(policy => {
         const policyholderName = policy.policyholder 
-          ? (policy.policyholder.entity_type === 'fisico' 
-              ? `${policy.policyholder.first_name} ${policy.policyholder.last_name}`
-              : policy.policyholder.business_name || '')
+          ? formatPolicyholderName(policy.policyholder)
           : ''
         
         return policy.policy_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -166,6 +165,17 @@ export default function PolicyList() {
     }
   }
 
+  const handleWhatsApp = (policy: Policy) => {
+    if (!policy.policyholder?.phone) {
+      alert('Este asegurado no tiene número de teléfono registrado')
+      return
+    }
+    
+    const name = formatPolicyholderName(policy.policyholder)
+    const message = `Hola ${name}, te contacto sobre tu póliza ${policy.policy_number}. ¿Cómo estás?`
+    openWhatsApp(policy.policyholder.phone, message)
+  }
+
   const formatCurrency = (amount: number, currencyCode: string = 'EUR') => {
     const currency = currencies.find(c => c.code === currencyCode)
     const symbol = currency?.symbol || currencyCode
@@ -222,14 +232,6 @@ export default function PolicyList() {
 
   const getCustomFieldValue = (policy: Policy, fieldName: string) => {
     return policy.custom_data?.[fieldName] || ''
-  }
-
-  const getPolicyholderDisplayName = (policyholder: Policyholder) => {
-    if (policyholder.entity_type === 'fisico') {
-      return `${policyholder.first_name} ${policyholder.last_name}`
-    } else {
-      return policyholder.business_name || 'Sin nombre'
-    }
   }
 
   if (loading) {
@@ -328,6 +330,15 @@ export default function PolicyList() {
                       </div>
                     </div>
                     <div className="flex space-x-2">
+                      {policy.policyholder?.phone && (
+                        <button
+                          onClick={() => handleWhatsApp(policy)}
+                          className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors duration-200"
+                          title="Enviar WhatsApp al asegurado"
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                        </button>
+                      )}
                       <button
                         onClick={() => handleEdit(policy)}
                         className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
@@ -346,7 +357,7 @@ export default function PolicyList() {
                   <div className="space-y-3">
                     <div>
                       <p className="text-sm font-medium text-gray-900">
-                        {policy.policyholder ? getPolicyholderDisplayName(policy.policyholder) : 'Sin asegurado'}
+                        {policy.policyholder ? formatPolicyholderName(policy.policyholder) : 'Sin asegurado'}
                       </p>
                       <p className="text-sm text-gray-600">
                         {policy.company?.name || policy.insurance_company}
@@ -613,14 +624,6 @@ function PolicyModal({
     }
   }
 
-  const getPolicyholderDisplayName = (policyholder: Policyholder) => {
-    if (policyholder.entity_type === 'fisico') {
-      return `${policyholder.first_name} ${policyholder.last_name}`
-    } else {
-      return policyholder.business_name || 'Sin nombre'
-    }
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -703,7 +706,7 @@ function PolicyModal({
                   <option value="">Seleccionar asegurado</option>
                   {policyholders.map((ph) => (
                     <option key={ph.id} value={ph.id}>
-                      {getPolicyholderDisplayName(ph)} ({ph.entity_type === 'fisico' ? 'Persona Física' : 'Persona Jurídica'})
+                      {formatPolicyholderName(ph)} ({ph.entity_type === 'fisico' ? 'Persona Física' : 'Persona Jurídica'})
                     </option>
                   ))}
                 </select>
